@@ -1,0 +1,33 @@
+# Claude Code specific files
+.claude/
+CLAUDE.md
+
+# MCP configuration
+.mcp.json
+
+# Development files
+src/
+tsconfig.json
+.prettierrc.json
+
+# IDE files
+.vscode/
+.idea/
+
+# Git files
+.gitignore
+
+# Test files
+test/
+tests/
+
+# Documentation (keep README.md)
+docs/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment files
+.env*
