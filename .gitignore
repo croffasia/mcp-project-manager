@@ -63,3 +63,4 @@ coverage/
 
 # Claude Code cache
 .claude/
+CLAUDE.md
