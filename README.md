@@ -17,7 +17,7 @@ Transform any MCP-compatible AI assistant into a powerful project manager with a
 🎯 **Hierarchical Project Management**: Ideas → Epics → Tasks with intelligent decomposition  
 🤖 **AI-Powered Task Creation**: Automated breakdown using natural language prompts  
 📊 **Smart Dependency Tracking**: Automatic task sequencing and blocker detection  
-⚡ **NPX Ready**: Zero-installation deployment with `npx @croffasia/mcp-project-manager`  
+⚡ **NPX Ready**: Zero-installation deployment with `npx mcp-project-manager`  
 🖥️ **Interactive CLI Dashboard**: Real-time project visualization and navigation  
 🔄 **Status Management**: Pending → In-Progress → Done with progress tracking  
 🛡️ **Approval Workflow**: User control over all AI actions and modifications  
@@ -55,7 +55,7 @@ Transform any MCP-compatible AI assistant into a powerful project manager with a
 
 ### Method 1: NPX (Recommended)
 
-Simply use `npx @croffasia/mcp-project-manager` in your MCP client configuration - NPX will
+Simply use `npx mcp-project-manager` in your MCP client configuration - NPX will
 handle downloading and running the server for you.
 
 ### Method 2: Clone Repository
@@ -85,7 +85,7 @@ Add to your Claude Code configuration (CLAUDE.md or project settings):
     "mcpServers": {
         "project-manager": {
             "command": "npx",
-            "args": ["@croffasia/mcp-project-manager"]
+            "args": ["mcp-project-manager"]
         }
     }
 }
@@ -110,7 +110,7 @@ folder:
     "mcpServers": {
         "project-manager": {
             "command": "npx",
-            "args": ["@croffasia/mcp-project-manager"],
+            "args": ["mcp-project-manager"],
             "env": {
                 "MCP_TASK_DATA_DIR": "/Users/yourusername/projects/my-app"
             }
@@ -126,7 +126,7 @@ folder:
     "mcpServers": {
         "project-manager": {
             "command": "npx",
-            "args": ["@croffasia/mcp-project-manager"],
+            "args": ["mcp-project-manager"],
             "env": {
                 "MCP_TASK_DATA_DIR": "/Users/yourusername/Documents/task-management"
             }
@@ -152,7 +152,7 @@ Add to Cursor settings (`File > Preferences > Settings > Extensions > MCP`):
         "servers": {
             "project-manager": {
                 "command": "npx",
-                "args": ["@croffasia/mcp-project-manager"]
+                "args": ["mcp-project-manager"]
             }
         }
     }
@@ -171,7 +171,7 @@ With GitHub Copilot extension and Agent mode enabled:
     "github.copilot.chat.mcp.servers": {
         "project-manager": {
             "command": "npx",
-            "args": ["@croffasia/mcp-project-manager"]
+            "args": ["mcp-project-manager"]
         }
     }
 }
@@ -189,7 +189,7 @@ Add to Continue config (`.continue/config.json`):
     "mcpServers": {
         "project-manager": {
             "command": "npx",
-            "args": ["@croffasia/mcp-project-manager"]
+            "args": ["mcp-project-manager"]
         }
     }
 }
@@ -310,8 +310,8 @@ Claude: Updates status and logs progress
 **With NPX:**
 
 ```bash
-npx @croffasia/mcp-project-manager --dashboard
-npx @croffasia/mcp-project-manager --dashboard --refresh=60
+npx mcp-project-manager --dashboard
+npx mcp-project-manager --dashboard --refresh=60
 ```
 
 **With local installation:**

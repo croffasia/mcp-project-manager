@@ -1,5 +1,5 @@
 {
-    "name": "@croffasia/mcp-project-manager",
+    "name": "mcp-project-manager",
     "version": "0.1.0",
     "description": "MCP Project Manager - Project Management server for Claude Desktop",
     "main": "dist/index.js",
