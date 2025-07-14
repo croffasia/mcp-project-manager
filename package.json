@@ -1,6 +1,6 @@
 {
     "name": "mcp-project-manager",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "MCP Project Manager - Hierarchical project management server for MCP-compatible AI assistants",
     "main": "dist/index.js",
     "type": "module",
