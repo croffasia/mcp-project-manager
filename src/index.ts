@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { z } from 'zod'
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
