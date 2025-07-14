@@ -83,7 +83,7 @@ Add to your Claude Code configuration (CLAUDE.md or project settings):
 ```json
 {
     "mcpServers": {
-        "project-manager": {
+        "pm": {
             "command": "npx",
             "args": ["mcp-project-manager"]
         }
@@ -108,7 +108,7 @@ folder:
 ```json
 {
     "mcpServers": {
-        "project-manager": {
+        "pm": {
             "command": "npx",
             "args": ["mcp-project-manager"],
             "env": {
@@ -124,7 +124,7 @@ folder:
 ```json
 {
     "mcpServers": {
-        "project-manager": {
+        "pm": {
             "command": "npx",
             "args": ["mcp-project-manager"],
             "env": {
@@ -150,7 +150,7 @@ Add to Cursor settings (`File > Preferences > Settings > Extensions > MCP`):
 {
     "mcp": {
         "servers": {
-            "project-manager": {
+            "pm": {
                 "command": "npx",
                 "args": ["mcp-project-manager"]
             }
@@ -169,7 +169,7 @@ With GitHub Copilot extension and Agent mode enabled:
 ```json
 {
     "github.copilot.chat.mcp.servers": {
-        "project-manager": {
+        "pm": {
             "command": "npx",
             "args": ["mcp-project-manager"]
         }
@@ -187,7 +187,7 @@ Add to Continue config (`.continue/config.json`):
 ```json
 {
     "mcpServers": {
-        "project-manager": {
+        "pm": {
             "command": "npx",
             "args": ["mcp-project-manager"]
         }
@@ -214,7 +214,7 @@ If you cloned the repository (Method 2), update your MCP client config:
 ```json
 {
     "mcpServers": {
-        "project-manager": {
+        "pm": {
             "command": "node",
             "args": ["/absolute/path/to/mcp-project-manager/dist/index.js"]
         }
@@ -227,7 +227,7 @@ If you cloned the repository (Method 2), update your MCP client config:
 ```json
 {
     "mcpServers": {
-        "project-manager": {
+        "pm": {
             "command": "node",
             "args": ["/absolute/path/to/mcp-project-manager/dist/index.js"],
             "env": {
