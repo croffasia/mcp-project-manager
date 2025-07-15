@@ -71,6 +71,12 @@ export class Decompose extends BasePrompt {
     private buildDecompositionPrompt(type: string, entityId: string): string {
         return `You are helping to decompose ${entityId} into manageable ${type === 'idea' ? 'epics and tasks' : 'tasks'}.
 
+**Before decomposing:**
+- Verify the entity exists and is accessible
+- Check if entity is already sufficiently decomposed
+- Ensure entity description provides enough detail for meaningful breakdown
+- If entity is not found or insufficient detail, explain what's needed
+
 First, load the ${type} data using the appropriate MCP tool:
 - For ideas: get_idea tool with ideaId="${entityId}"
 - For epics: get_epic tool with epicId="${entityId}"
@@ -98,12 +104,25 @@ First, load the ${type} data using the appropriate MCP tool:
 - Dependencies on other tasks (if any)
 - Estimated effort in days (2-5 days typically)
 
-**Quality Criteria:**
+**Quality Validation:**
+- Each task should be independently deliverable
+- Dependencies should be explicit and minimal
+- Estimates should reflect realistic complexity
+- Tasks should align with existing project architecture
 - Tasks represent meaningful deliverables
 - Avoid micro-management level granularity
 - Clear definition of done
 - Realistic scope for the estimated timeframe
 
-Analyze the ${type} description thoroughly and create a sensible breakdown that delivers the functionality described without being overly detailed.`
+Analyze the ${type} description thoroughly and create a sensible breakdown that delivers the functionality described without being overly detailed.
+
+**After creating the decomposition, provide structured guidance:**
+- Suggest next steps for task management (prioritization, assignment, etc.)
+- Indicate if any tasks need further breakdown or clarification
+- Highlight critical path dependencies that could block progress
+- Recommend task prioritization approach based on dependencies and risk
+- Note any tasks that might require additional research or spikes
+- Suggest which tasks could be worked on in parallel
+- Identify any missing context or requirements that should be gathered`
     }
 }
