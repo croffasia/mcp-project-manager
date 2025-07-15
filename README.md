@@ -7,25 +7,33 @@
 
 **Hierarchical Task Management via Model Context Protocol (MCP)**
 
-Transform any MCP-compatible AI assistant into a powerful project manager with automated task breakdown, dependency tracking, and smart workflow management.
+Transform any MCP-compatible AI assistant into a powerful project manager with
+automated task breakdown, dependency tracking, and smart workflow management.
 
-**Compatible with:** Claude Code • Claude Desktop • Cursor • VS Code + Copilot • Continue.dev • Any MCP Client
+**Compatible with:** Claude Code • Claude Desktop • Cursor • VS Code + Copilot •
+Continue.dev • Any MCP Client
 
 ## 📖 Documentation
 
-- 📚 **[Complete User Guide](docs/README.md)** - Comprehensive setup and usage guide
-- ⚙️ **[Tools Reference](docs/tools.md)** - Complete MCP tools documentation  
-- 🎯 **[AI Prompts](docs/prompts.md)** - Ready-to-use prompts for task management
+- 📚 **[Complete User Guide](docs/README.md)** - Comprehensive setup and usage
+  guide
+- ⚙️ **[Tools Reference](docs/tools.md)** - Complete MCP tools documentation
+- 🎯 **[AI Prompts](docs/prompts.md)** - Ready-to-use prompts for task
+  management
 
 ## ✨ Key Features
 
-🎯 **Hierarchical Project Management**: Ideas → Epics → Tasks with intelligent decomposition  
-🤖 **AI-Powered Task Creation**: Automated breakdown using natural language prompts  
-📊 **Smart Dependency Tracking**: Automatic task sequencing and blocker detection  
+🎯 **Hierarchical Project Management**: Ideas → Epics → Tasks with intelligent
+decomposition  
+🤖 **AI-Powered Task Creation**: Automated breakdown using natural language
+prompts  
+📊 **Smart Dependency Tracking**: Automatic task sequencing and blocker
+detection  
 ⚡ **NPX Ready**: Zero-installation deployment with `npx mcp-project-manager`  
-🖥️ **Interactive CLI Dashboard**: Real-time project visualization and navigation  
+🖥️ **Interactive CLI Dashboard**: Real-time project visualization and
+navigation  
 🔄 **Status Management**: Pending → In-Progress → Done with progress tracking  
-🛡️ **Approval Workflow**: User control over all AI actions and modifications  
+🛡️ **Approval Workflow**: User control over all AI actions and modifications
 
 ## 🚀 Quick Start
 
@@ -152,6 +160,7 @@ folder:
 Add to Cursor MCP configuration:
 
 **Global Configuration**: Create `~/.cursor/mcp.json`:
+
 ```json
 {
     "mcpServers": {
@@ -164,6 +173,7 @@ Add to Cursor MCP configuration:
 ```
 
 **Project-specific Configuration**: Create `.cursor/mcp.json` in your project:
+
 ```json
 {
     "mcpServers": {
@@ -183,6 +193,7 @@ Add to Cursor MCP configuration:
 With GitHub Copilot extension and Agent mode enabled:
 
 **Workspace Configuration**: Create `.vscode/mcp.json` in your project:
+
 ```json
 {
     "servers": {
@@ -196,6 +207,7 @@ With GitHub Copilot extension and Agent mode enabled:
 ```
 
 **With custom data directory**:
+
 ```json
 {
     "servers": {
@@ -222,24 +234,25 @@ name: MCP Project Manager
 version: 0.1.3
 schema: v1
 mcpServers:
-  - name: Project Manager
-    command: npx
-    args:
-      - "mcp-project-manager"
+    - name: Project Manager
+      command: npx
+      args:
+          - 'mcp-project-manager'
 ```
 
 **With custom data directory**:
+
 ```yaml
 name: MCP Project Manager
 version: 0.1.3
 schema: v1
 mcpServers:
-  - name: Project Manager
-    command: npx
-    args:
-      - "mcp-project-manager"
-    env:
-      MCP_TASK_DATA_DIR: "/path/to/your/project"
+    - name: Project Manager
+      command: npx
+      args:
+          - 'mcp-project-manager'
+      env:
+          MCP_TASK_DATA_DIR: '/path/to/your/project'
 ```
 
 ### 🟣 **Other MCP-Compatible Tools**
@@ -300,10 +313,10 @@ name: MCP Project Manager
 version: 0.1.3
 schema: v1
 mcpServers:
-  - name: Project Manager
-    command: node
-    args:
-      - "/absolute/path/to/mcp-project-manager/dist/index.js"
+    - name: Project Manager
+      command: node
+      args:
+          - '/absolute/path/to/mcp-project-manager/dist/index.js'
 ```
 
 ## For Developers
@@ -333,9 +346,8 @@ npm run test   # Run tests
 
 ## 🖥️ CLI Dashboard
 
-Interactive terminal-based interface for task management with real-time updates and hierarchical navigation. Run with `npx mcp-project-manager --dashboard`.
-
-
+Interactive terminal-based interface for task management with real-time updates
+and hierarchical navigation. Run with `npx mcp-project-manager --dashboard`.
 
 ## Advanced Configuration
 
@@ -361,7 +373,6 @@ The registry tracks:
 This happens automatically - no configuration needed. The registry enables
 future features like project switching and usage analytics.
 
-
 ### Environment Variables
 
 - `MCP_TASK_DATA_DIR` - Custom directory for storing task data
@@ -370,9 +381,10 @@ future features like project switching and usage analytics.
 
 ## 🌟 Contributing & Support
 
-🐛 **Report issues** on our [GitHub Issues](https://github.com/croffasia/mcp-project-manager/issues)  
+🐛 **Report issues** on our
+[GitHub Issues](https://github.com/croffasia/mcp-project-manager/issues)  
 🤝 **Contribute** by submitting pull requests  
-📖 **Share** with other developers who use MCP-compatible AI tools  
+📖 **Share** with other developers who use MCP-compatible AI tools
 
 ## 📄 License
 
@@ -382,7 +394,9 @@ MIT © 2025 [Andrii Poluosmak](https://github.com/croffasia)
 
 ### 🌟 Found this project useful?
 
-If MCP Project Manager helped improve your AI-powered development workflow, please consider giving it a star! Your support helps us reach more developers and continue improving the project.
+If MCP Project Manager helped improve your AI-powered development workflow,
+please consider giving it a star! Your support helps us reach more developers
+and continue improving the project.
 
 [![GitHub stars](https://img.shields.io/github/stars/croffasia/mcp-project-manager?style=social)](https://github.com/croffasia/mcp-project-manager/stargazers)
 

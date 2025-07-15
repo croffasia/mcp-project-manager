@@ -162,39 +162,43 @@ export class UpdateEpicTool extends BaseTool {
                 content: [
                     {
                         type: 'text',
-                        text: JSON.stringify({
-                            result: {
-                                epic: {
-                                    id: epic.id,
-                                    title: epic.title,
-                                    status: epic.status,
-                                    priority: epic.priority,
-                                    parentIdeaTitle: ideaTitle
+                        text: JSON.stringify(
+                            {
+                                result: {
+                                    epic: {
+                                        id: epic.id,
+                                        title: epic.title,
+                                        status: epic.status,
+                                        priority: epic.priority,
+                                        parentIdeaTitle: ideaTitle,
+                                    },
+                                    changes: [],
+                                    reason: 'no_changes',
                                 },
-                                changes: [],
-                                reason: 'no_changes'
+                                status: 'warning',
+                                guidance: {
+                                    next_steps: [
+                                        'Specify different values to make changes',
+                                        'Create tasks within this epic to organize work',
+                                        'Review epic progress and adjust priorities as needed',
+                                    ],
+                                    context: `No changes made to epic "${epic.title}"`,
+                                    recommendations: [
+                                        'Use get_epic to view current epic details',
+                                        'Create tasks to break down epic into actionable items',
+                                        'Update status when starting or completing epic work',
+                                    ],
+                                    suggested_commands: [
+                                        `pm get_epic ${epic.id}`,
+                                        `pm create_task "Task for ${epic.title}"`,
+                                        `pm list_all_epics`,
+                                        `pm get_idea ${epic.ideaId}`,
+                                    ],
+                                },
                             },
-                            status: "warning",
-                            guidance: {
-                                next_steps: [
-                                    'Specify different values to make changes',
-                                    'Create tasks within this epic to organize work',
-                                    'Review epic progress and adjust priorities as needed'
-                                ],
-                                context: `No changes made to epic "${epic.title}"`,
-                                recommendations: [
-                                    'Use get_epic to view current epic details',
-                                    'Create tasks to break down epic into actionable items',
-                                    'Update status when starting or completing epic work'
-                                ],
-                                suggested_commands: [
-                                    `pm get_epic ${epic.id}`,
-                                    `pm create_task "Task for ${epic.title}"`,
-                                    `pm list_all_epics`,
-                                    `pm get_idea ${epic.ideaId}`
-                                ]
-                            }
-                        }, null, 2)
+                            null,
+                            2
+                        ),
                     },
                 ],
                 metadata: {
@@ -230,44 +234,66 @@ export class UpdateEpicTool extends BaseTool {
             content: [
                 {
                     type: 'text',
-                    text: JSON.stringify({
-                        result: {
-                            epic: {
-                                id: epic.id,
-                                title: epic.title,
-                                status: epic.status,
-                                priority: epic.priority,
-                                updatedAt: epic.updatedAt.toISOString(),
-                                parentIdeaTitle: ideaTitle
+                    text: JSON.stringify(
+                        {
+                            result: {
+                                epic: {
+                                    id: epic.id,
+                                    title: epic.title,
+                                    status: epic.status,
+                                    priority: epic.priority,
+                                    updatedAt: epic.updatedAt.toISOString(),
+                                    parentIdeaTitle: ideaTitle,
+                                },
+                                changes: changes,
+                                taskProgress: {
+                                    totalTasks: epicTasks.length,
+                                    completedTasks: completedTasks,
+                                    inProgressTasks: inProgressTasks,
+                                    blockedTasks: blockedTasks,
+                                    pendingTasks: pendingTasks,
+                                    completionPercent:
+                                        epicTasks.length > 0
+                                            ? Math.round(
+                                                  (completedTasks /
+                                                      epicTasks.length) *
+                                                      100
+                                              )
+                                            : 0,
+                                },
+                                statusTransition: {
+                                    from: oldStatus,
+                                    to: epic.status,
+                                    isProgression: this.isProgression(
+                                        oldStatus,
+                                        epic.status
+                                    ),
+                                },
                             },
-                            changes: changes,
-                            taskProgress: {
-                                totalTasks: epicTasks.length,
-                                completedTasks: completedTasks,
-                                inProgressTasks: inProgressTasks,
-                                blockedTasks: blockedTasks,
-                                pendingTasks: pendingTasks,
-                                completionPercent: epicTasks.length > 0 ? Math.round((completedTasks / epicTasks.length) * 100) : 0
+                            status: 'success',
+                            guidance: {
+                                next_steps: this.getNextSteps(
+                                    epic,
+                                    oldStatus,
+                                    validatedArgs
+                                ),
+                                context: `Epic "${epic.title}" updated with ${changes.length} changes`,
+                                recommendations: this.getRecommendations(
+                                    epic,
+                                    oldStatus,
+                                    validatedArgs
+                                ),
+                                suggested_commands: [
+                                    `pm get_epic ${epic.id}`,
+                                    `pm create_task "Task for ${epic.title}"`,
+                                    `pm list_all_tasks`,
+                                    `pm get_idea ${epic.ideaId}`,
+                                ],
                             },
-                            statusTransition: {
-                                from: oldStatus,
-                                to: epic.status,
-                                isProgression: this.isProgression(oldStatus, epic.status)
-                            }
                         },
-                        status: "success",
-                        guidance: {
-                            next_steps: this.getNextSteps(epic, oldStatus, validatedArgs),
-                            context: `Epic "${epic.title}" updated with ${changes.length} changes`,
-                            recommendations: this.getRecommendations(epic, oldStatus, validatedArgs),
-                            suggested_commands: [
-                                `pm get_epic ${epic.id}`,
-                                `pm create_task "Task for ${epic.title}"`,
-                                `pm list_all_tasks`,
-                                `pm get_idea ${epic.ideaId}`
-                            ]
-                        }
-                    }, null, 2)
+                        null,
+                        2
+                    ),
                 },
             ],
             metadata: {
@@ -298,12 +324,18 @@ export class UpdateEpicTool extends BaseTool {
         return oldIndex >= 0 && newIndex >= 0 && newIndex > oldIndex
     }
 
-    private getNextSteps(epic: any, oldStatus: string, validatedArgs: any): string[] {
+    private getNextSteps(
+        epic: any,
+        oldStatus: string,
+        validatedArgs: any
+    ): string[] {
         const nextSteps = []
-        
+
         if (epic.status === 'in-progress' && oldStatus === 'pending') {
             nextSteps.push('Create tasks within this epic to organize work')
-            nextSteps.push('Monitor task progress and update epic status accordingly')
+            nextSteps.push(
+                'Monitor task progress and update epic status accordingly'
+            )
         } else if (epic.status === 'done' && oldStatus !== 'done') {
             nextSteps.push('Epic completed successfully')
             nextSteps.push('Review epic outcomes and lessons learned')
@@ -311,42 +343,58 @@ export class UpdateEpicTool extends BaseTool {
             nextSteps.push('Identify and resolve blocking issues')
             nextSteps.push('Focus on unblocking dependent tasks')
         }
-        
+
         if (validatedArgs.priority) {
             nextSteps.push('Adjust task priorities within epic accordingly')
         }
-        
+
         nextSteps.push('Review epic progress and task completion rates')
         nextSteps.push('Check parent idea progress to see overall alignment')
-        
+
         return nextSteps
     }
 
-    private getRecommendations(epic: any, oldStatus: string, validatedArgs: any): string[] {
+    private getRecommendations(
+        epic: any,
+        oldStatus: string,
+        validatedArgs: any
+    ): string[] {
         const recommendations = []
-        
+
         if (epic.status === 'in-progress') {
-            recommendations.push('Break down epic into specific, actionable tasks')
-            recommendations.push('Track task completion to monitor epic progress')
+            recommendations.push(
+                'Break down epic into specific, actionable tasks'
+            )
+            recommendations.push(
+                'Track task completion to monitor epic progress'
+            )
         }
-        
+
         if (epic.status === 'done') {
             recommendations.push('Ensure all tasks within epic are completed')
             recommendations.push('Review epic deliverables and impact')
         }
-        
+
         if (epic.status === 'blocked') {
-            recommendations.push('Identify specific blockers and create action plan')
-            recommendations.push('Focus on resolving dependencies before continuing')
+            recommendations.push(
+                'Identify specific blockers and create action plan'
+            )
+            recommendations.push(
+                'Focus on resolving dependencies before continuing'
+            )
         }
-        
+
         if (validatedArgs.priority === 'high') {
-            recommendations.push('High priority epic - ensure adequate resources')
+            recommendations.push(
+                'High priority epic - ensure adequate resources'
+            )
         }
-        
-        recommendations.push('Keep epic information up to date for team coordination')
+
+        recommendations.push(
+            'Keep epic information up to date for team coordination'
+        )
         recommendations.push('Align epic progress with strategic objectives')
-        
+
         return recommendations
     }
 }
