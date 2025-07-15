@@ -32,13 +32,43 @@ export class UpdateIdeaTool extends BaseTool {
     }
 
     /**
-     * Returns the description of the tool
-     * @returns The tool description
+     * Returns the description of the tool with AI-guidance structure
+     * @returns The tool description with usage context
      */
     getDescription(): string {
-        return 'Update idea properties (title, description, status, priority) with automatic change tracking and timestamp updates'
+        return `Update idea properties (title, description, status, priority) with automatic change tracking and timestamp updates.
+        
+        WHEN TO USE:
+        - Starting work on an idea (status → in-progress)
+        - Updating idea priority based on business needs
+        - Refining idea title or description
+        - Marking ideas as done or blocked
+        - Deferring ideas for later consideration
+        
+        PARAMETERS:
+        - ideaId: Required ID of the idea to update
+        - title: Update idea title
+        - description: Update idea description
+        - status: Change idea status (pending, in-progress, done, blocked, deferred)
+        - priority: Update idea priority (low, medium, high)
+        
+        USAGE CONTEXT:
+        - Critical for AI agents to track high-level feature development
+        - Essential for maintaining product roadmap and vision
+        - Used for business priority management and strategic planning
+        - Supports progress tracking across multiple epics
+        
+        EXPECTED OUTCOMES:
+        - Idea properties updated with change tracking
+        - Automatic timestamp updates for audit trail
+        - Clear feedback on changes made and progress statistics
+        - Contextual next steps based on current state`
     }
 
+    /**
+     * Returns the input schema for the tool
+     * @returns The JSON schema for tool input
+     */
     getInputSchema(): object {
         return {
             type: 'object',
@@ -47,10 +77,10 @@ export class UpdateIdeaTool extends BaseTool {
                     type: 'string',
                     description: 'ID of the idea to update',
                 },
-                title: { type: 'string', description: 'Update title' },
+                title: { type: 'string', description: 'Update idea title' },
                 description: {
                     type: 'string',
-                    description: 'Update description',
+                    description: 'Update idea description',
                 },
                 status: {
                     type: 'string',
@@ -61,18 +91,23 @@ export class UpdateIdeaTool extends BaseTool {
                         'blocked',
                         'deferred',
                     ],
-                    description: 'Update status',
+                    description: 'Update idea status',
                 },
                 priority: {
                     type: 'string',
                     enum: ['low', 'medium', 'high'],
-                    description: 'Update priority',
+                    description: 'Update idea priority',
                 },
             },
             required: ['ideaId'],
         }
     }
 
+    /**
+     * Executes the idea update process with change tracking
+     * @param args - The tool arguments containing ideaId and optional update fields
+     * @returns The update result with change summary and next steps
+     */
     async execute(args: any): Promise<ToolResult> {
         // Check approval requirement first, except for status change to 'in-progress'
         const isStartingWork = args.status === 'in-progress'
@@ -127,21 +162,66 @@ export class UpdateIdeaTool extends BaseTool {
         // Save idea
         await storage.saveIdea(idea)
 
+        // Get epics statistics for context
+        const epics = idea.epics || []
+        const completedEpics = epics.filter((e) => e.status === 'done').length
+        const inProgressEpics = epics.filter(
+            (e) => e.status === 'in-progress'
+        ).length
+        const blockedEpics = epics.filter((e) => e.status === 'blocked').length
+
         if (changes.length === 0) {
             return {
                 content: [
                     {
                         type: 'text',
-                        text: `[WARN] **No changes made to idea: "${idea.title}"**
-
-- **ID**: ${idea.id}
-- **Current Status**: ${idea.status}
-- **Current Priority**: ${idea.priority}
-
-**Next Steps:**
-- **View details**: \`pm get_idea ${idea.id}\`
-- **Create epic**: \`pm create epic "New Epic for ${idea.title}"\`
-- **View all ideas**: \`pm list ideas\``,
+                        text: JSON.stringify(
+                            {
+                                result: {
+                                    idea: {
+                                        id: idea.id,
+                                        title: idea.title,
+                                        status: idea.status,
+                                        priority: idea.priority,
+                                        description: idea.description,
+                                        epicsCount: epics.length,
+                                        completedEpics: completedEpics,
+                                        progressPercent:
+                                            epics.length > 0
+                                                ? Math.round(
+                                                      (completedEpics /
+                                                          epics.length) *
+                                                          100
+                                                  )
+                                                : 0,
+                                    },
+                                    changes: [],
+                                    reason: 'no_changes',
+                                },
+                                status: 'warning',
+                                guidance: {
+                                    next_steps: [
+                                        'Specify different values to make changes',
+                                        'View idea details to understand current state',
+                                        'Create epics to break down the idea',
+                                    ],
+                                    context: `No changes made to idea "${idea.title}"`,
+                                    recommendations: [
+                                        'Use get_idea to view current idea details',
+                                        'Create epics to start implementing the idea',
+                                        'Update status when work begins on this idea',
+                                    ],
+                                    suggested_commands: [
+                                        `pm get_idea ${idea.id}`,
+                                        `pm create epic "New Epic for ${idea.title}"`,
+                                        `pm list epics`,
+                                        `pm update_idea ${idea.id} status in-progress`,
+                                    ],
+                                },
+                            },
+                            null,
+                            2
+                        ),
                     },
                 ],
                 metadata: {
@@ -153,58 +233,76 @@ export class UpdateIdeaTool extends BaseTool {
                     currentStatus: idea.status,
                     currentPriority: idea.priority,
                     updatedFields: [],
-                    suggestedCommands: [
-                        `pm get_idea ${idea.id}`,
-                        `pm create epic "New Epic for ${idea.title}"`,
-                        `pm list ideas`,
-                    ],
                 },
             }
         }
-
-        // Get epics statistics for context
-        const epics = idea.epics || []
-        const completedEpics = epics.filter((e) => e.status === 'done').length
-        const inProgressEpics = epics.filter(
-            (e) => e.status === 'in-progress'
-        ).length
-        const blockedEpics = epics.filter((e) => e.status === 'blocked').length
-
-        const statusIcon = this.getStatusIcon(idea.status)
-        const progressIcon = this.getProgressIcon(idea.status, oldStatus)
-
-        const responseText = `${statusIcon} **Idea Updated: "${idea.title}"**
-
-**Changes Made:**
-${changes.map((change) => `- ${change}`).join('\n')}
-
-**Current Status:**
-- **ID**: ${idea.id}
-- **Status**: ${idea.status}
-- **Priority**: ${idea.priority}
-- **Updated**: ${idea.updatedAt.toLocaleDateString()}
-
-${progressIcon} **Progress Summary:**
-- **Total Epics**: ${epics.length}
-- **Completed**: ${completedEpics} (${epics.length > 0 ? Math.round((completedEpics / epics.length) * 100) : 0}%)
-- **In Progress**: ${inProgressEpics}
-- **Blocked**: ${blockedEpics}
-
-**Description:**
-${idea.description}
-
-**Next Steps:**
-- **View full details**: \`pm get_idea ${idea.id}\`
-- **Create new epic**: \`pm create epic "New Epic for ${idea.title}"\`
-- **View all epics**: \`pm list epics\`
-
-[TIP] **Pro tip**: Keep idea descriptions clear and update status as epics progress!`
 
         return {
             content: [
                 {
                     type: 'text',
-                    text: responseText,
+                    text: JSON.stringify(
+                        {
+                            result: {
+                                idea: {
+                                    id: idea.id,
+                                    title: idea.title,
+                                    status: idea.status,
+                                    priority: idea.priority,
+                                    description: idea.description,
+                                    updatedAt: idea.updatedAt.toISOString(),
+                                    epicsCount: epics.length,
+                                    completedEpics: completedEpics,
+                                    inProgressEpics: inProgressEpics,
+                                    blockedEpics: blockedEpics,
+                                    progressPercent:
+                                        epics.length > 0
+                                            ? Math.round(
+                                                  (completedEpics /
+                                                      epics.length) *
+                                                      100
+                                              )
+                                            : 0,
+                                },
+                                changes: changes,
+                                statusTransition: {
+                                    from: oldStatus,
+                                    to: idea.status,
+                                    isProgression: this.isProgression(
+                                        oldStatus,
+                                        idea.status
+                                    ),
+                                },
+                                priorityChange: {
+                                    from: oldPriority,
+                                    to: idea.priority,
+                                    changed: oldPriority !== idea.priority,
+                                },
+                            },
+                            status: 'success',
+                            guidance: {
+                                next_steps: this.getNextSteps(
+                                    idea,
+                                    oldStatus,
+                                    validatedArgs
+                                ),
+                                context: `Idea "${idea.title}" updated with ${changes.length} changes`,
+                                recommendations: this.getRecommendations(
+                                    idea,
+                                    oldStatus,
+                                    validatedArgs
+                                ),
+                                suggested_commands: [
+                                    `pm get_idea ${idea.id}`,
+                                    `pm create epic "New Epic for ${idea.title}"`,
+                                    `pm list epics`,
+                                    `pm next_task`,
+                                ],
+                            },
+                        },
+                        null,
+                        2
+                    ),
                 },
             ],
             metadata: {
@@ -223,38 +321,127 @@ ${idea.description}
                     epics.length > 0
                         ? Math.round((completedEpics / epics.length) * 100)
                         : 0,
-                suggestedCommands: [
-                    `pm get_idea ${idea.id}`,
-                    `pm create epic "New Epic for ${idea.title}"`,
-                    `pm list epics`,
-                ],
             },
         }
     }
 
-    private getStatusIcon(status: string): string {
-        switch (status) {
-            case 'done':
-                return '[OK]'
-            case 'in-progress':
-                return '[WAIT]'
-            case 'blocked':
-                return '[BLOCK]'
-            case 'deferred':
-                return '[DATE]'
-            default:
-                return '⏸️'
-        }
+    private isProgression(oldStatus: string, newStatus: string): boolean {
+        const progressionOrder = ['pending', 'in-progress', 'done']
+        const oldIndex = progressionOrder.indexOf(oldStatus)
+        const newIndex = progressionOrder.indexOf(newStatus)
+        return oldIndex >= 0 && newIndex >= 0 && newIndex > oldIndex
     }
 
-    private getProgressIcon(newStatus: string, oldStatus: string): string {
-        if (newStatus === 'done' && oldStatus !== 'done') {
-            return '[SUCCESS]'
-        } else if (newStatus === 'in-progress' && oldStatus === 'pending') {
-            return '[START]'
-        } else if (newStatus === 'blocked') {
-            return '[WARN]'
+    private getNextSteps(
+        idea: any,
+        oldStatus: string,
+        validatedArgs: any
+    ): string[] {
+        const nextSteps = []
+
+        if (idea.status === 'in-progress' && oldStatus === 'pending') {
+            nextSteps.push(
+                'Create epics to break down the idea into manageable phases'
+            )
+            nextSteps.push('Define clear success criteria for the idea')
+        } else if (idea.status === 'done' && oldStatus !== 'done') {
+            nextSteps.push('Idea completed successfully')
+            nextSteps.push(
+                'Review completed epics and document lessons learned'
+            )
+        } else if (idea.status === 'blocked') {
+            nextSteps.push('Identify and resolve blocking issues')
+            nextSteps.push('Consider adjusting scope or approach')
+        } else if (idea.status === 'deferred') {
+            nextSteps.push('Document reasons for deferral')
+            nextSteps.push('Set review date for future consideration')
         }
-        return '[NOTE]'
+
+        if (validatedArgs.priority) {
+            nextSteps.push('Align team priorities with updated idea priority')
+        }
+
+        if (validatedArgs.title || validatedArgs.description) {
+            nextSteps.push('Communicate changes to stakeholders')
+        }
+
+        nextSteps.push('Review idea progress and associated epics')
+
+        return nextSteps
+    }
+
+    private getRecommendations(
+        idea: any,
+        oldStatus: string,
+        validatedArgs: any
+    ): string[] {
+        const recommendations = []
+
+        if (idea.status === 'in-progress') {
+            recommendations.push(
+                'Break down idea into specific epics with clear deliverables'
+            )
+            recommendations.push(
+                'Establish regular progress reviews and milestone tracking'
+            )
+
+            if (oldStatus === 'pending') {
+                recommendations.push(
+                    'Define clear success criteria and acceptance criteria'
+                )
+            }
+        }
+
+        if (idea.status === 'done') {
+            recommendations.push('Ensure all epics are completed and validated')
+            recommendations.push(
+                'Conduct retrospective to capture lessons learned'
+            )
+
+            if (oldStatus !== 'done') {
+                recommendations.push(
+                    'Document outcomes and business value achieved'
+                )
+            }
+        }
+
+        if (idea.status === 'blocked') {
+            recommendations.push(
+                'Document blockers clearly and assign ownership'
+            )
+            recommendations.push(
+                'Explore alternative approaches or scope adjustments'
+            )
+
+            if (oldStatus === 'in-progress') {
+                recommendations.push(
+                    'Assess impact on ongoing work and communicate to team'
+                )
+            }
+        }
+
+        if (idea.priority === 'high') {
+            recommendations.push(
+                'Allocate dedicated resources for high-priority ideas'
+            )
+            recommendations.push(
+                'Provide regular progress updates to stakeholders'
+            )
+        }
+
+        if (validatedArgs.description) {
+            recommendations.push(
+                'Keep idea descriptions clear and outcome-focused'
+            )
+        }
+
+        recommendations.push(
+            'Maintain alignment between idea status and epic progress'
+        )
+        recommendations.push(
+            'Regular review of idea progress and business value'
+        )
+
+        return recommendations
     }
 }

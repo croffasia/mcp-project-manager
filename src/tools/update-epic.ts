@@ -32,11 +32,37 @@ export class UpdateEpicTool extends BaseTool {
     }
 
     /**
-     * Returns the description of the tool
-     * @returns The tool description
+     * Returns the description of the tool with AI-guidance structure
+     * @returns The tool description with usage context
      */
     getDescription(): string {
-        return 'Update epic properties (title, description, status, priority) with automatic change tracking and timestamp updates'
+        return `Update epic properties (title, description, status, priority) with automatic change tracking and progress analysis.
+        
+        WHEN TO USE:
+        - Starting work on an epic (status → in-progress)
+        - Updating epic title or description for clarity
+        - Changing epic priority based on business needs
+        - Marking epic as done when all tasks are complete
+        - Blocking epic when dependencies are not met
+        
+        PARAMETERS:
+        - epicId: Required ID of the epic to update
+        - title: Update epic title
+        - description: Update epic description
+        - status: Change epic status (pending, in-progress, done, blocked, deferred)
+        - priority: Update epic priority (low, medium, high)
+        
+        USAGE CONTEXT:
+        - Critical for AI agents to track epic-level progress
+        - Essential for maintaining epic state and visibility
+        - Used for strategic planning and resource allocation
+        - Supports detailed change logging and audit trail
+        
+        EXPECTED OUTCOMES:
+        - Epic properties updated with change tracking
+        - Task progress analysis and completion statistics
+        - Automatic metadata updates and validation
+        - Clear feedback on changes made and strategic next steps`
     }
 
     getInputSchema(): object {
@@ -136,17 +162,39 @@ export class UpdateEpicTool extends BaseTool {
                 content: [
                     {
                         type: 'text',
-                        text: `[WARN] **No changes made to epic: "${epic.title}"**
-
-- **ID**: ${epic.id}
-- **Parent Idea**: ${ideaTitle}
-- **Current Status**: ${epic.status}
-- **Current Priority**: ${epic.priority}
-
-**Next Steps:**
-- **View details**: \`pm get_epic ${epic.id}\`
-- **Create task**: \`pm create task "New Task for ${epic.title}"\`
-- **View all epics**: \`pm list epics\``,
+                        text: JSON.stringify({
+                            result: {
+                                epic: {
+                                    id: epic.id,
+                                    title: epic.title,
+                                    status: epic.status,
+                                    priority: epic.priority,
+                                    parentIdeaTitle: ideaTitle
+                                },
+                                changes: [],
+                                reason: 'no_changes'
+                            },
+                            status: "warning",
+                            guidance: {
+                                next_steps: [
+                                    'Specify different values to make changes',
+                                    'Create tasks within this epic to organize work',
+                                    'Review epic progress and adjust priorities as needed'
+                                ],
+                                context: `No changes made to epic "${epic.title}"`,
+                                recommendations: [
+                                    'Use get_epic to view current epic details',
+                                    'Create tasks to break down epic into actionable items',
+                                    'Update status when starting or completing epic work'
+                                ],
+                                suggested_commands: [
+                                    `pm get_epic ${epic.id}`,
+                                    `pm create_task "Task for ${epic.title}"`,
+                                    `pm list_all_epics`,
+                                    `pm get_idea ${epic.ideaId}`
+                                ]
+                            }
+                        }, null, 2)
                     },
                 ],
                 metadata: {
@@ -158,11 +206,6 @@ export class UpdateEpicTool extends BaseTool {
                     currentStatus: epic.status,
                     currentPriority: epic.priority,
                     updatedFields: [],
-                    suggestedCommands: [
-                        `pm get_epic ${epic.id}`,
-                        `pm create task "New Task for ${epic.title}"`,
-                        `pm list epics`,
-                    ],
                 },
             }
         }
@@ -183,46 +226,48 @@ export class UpdateEpicTool extends BaseTool {
             (t) => t.status === 'pending'
         ).length
 
-        const statusIcon = this.getStatusIcon(epic.status)
-        const progressIcon = this.getProgressIcon(epic.status, oldStatus)
-
-        const responseText = `${statusIcon} **Epic Updated: "${epic.title}"**
-
-**Epic Context:**
-- **ID**: ${epic.id}
-- **Parent Idea**: ${ideaTitle}
-
-**Changes Made:**
-${changes.map((change) => `- ${change}`).join('\n')}
-
-**Current Status:**
-- **Status**: ${epic.status}
-- **Priority**: ${epic.priority}
-- **Updated**: ${epic.updatedAt.toLocaleDateString()}
-
-${progressIcon} **Task Progress Summary:**
-- **Total Tasks**: ${epicTasks.length}
-- **Completed**: ${completedTasks} (${epicTasks.length > 0 ? Math.round((completedTasks / epicTasks.length) * 100) : 0}%)
-- **In Progress**: ${inProgressTasks}
-- **Blocked**: ${blockedTasks}
-- **Pending**: ${pendingTasks}
-
-**Description:**
-${epic.description}
-
-**Next Steps:**
-- **View full details**: \`pm get_epic ${epic.id}\`
-- **Create new task**: \`pm create task "New Task for ${epic.title}"\`
-- **View parent idea**: \`pm get_idea ${epic.ideaId}\`
-- **View all tasks**: \`pm list tasks\`
-
-[TIP] **Pro tip**: Update epic status as tasks progress to track overall completion!`
-
         return {
             content: [
                 {
                     type: 'text',
-                    text: responseText,
+                    text: JSON.stringify({
+                        result: {
+                            epic: {
+                                id: epic.id,
+                                title: epic.title,
+                                status: epic.status,
+                                priority: epic.priority,
+                                updatedAt: epic.updatedAt.toISOString(),
+                                parentIdeaTitle: ideaTitle
+                            },
+                            changes: changes,
+                            taskProgress: {
+                                totalTasks: epicTasks.length,
+                                completedTasks: completedTasks,
+                                inProgressTasks: inProgressTasks,
+                                blockedTasks: blockedTasks,
+                                pendingTasks: pendingTasks,
+                                completionPercent: epicTasks.length > 0 ? Math.round((completedTasks / epicTasks.length) * 100) : 0
+                            },
+                            statusTransition: {
+                                from: oldStatus,
+                                to: epic.status,
+                                isProgression: this.isProgression(oldStatus, epic.status)
+                            }
+                        },
+                        status: "success",
+                        guidance: {
+                            next_steps: this.getNextSteps(epic, oldStatus, validatedArgs),
+                            context: `Epic "${epic.title}" updated with ${changes.length} changes`,
+                            recommendations: this.getRecommendations(epic, oldStatus, validatedArgs),
+                            suggested_commands: [
+                                `pm get_epic ${epic.id}`,
+                                `pm create_task "Task for ${epic.title}"`,
+                                `pm list_all_tasks`,
+                                `pm get_idea ${epic.ideaId}`
+                            ]
+                        }
+                    }, null, 2)
                 },
             ],
             metadata: {
@@ -242,38 +287,66 @@ ${epic.description}
                         ? Math.round((completedTasks / epicTasks.length) * 100)
                         : 0,
                 parentIdeaId: epic.ideaId,
-                suggestedCommands: [
-                    `pm get_epic ${epic.id}`,
-                    `pm create task "New Task for ${epic.title}"`,
-                    `pm list tasks`,
-                ],
             },
         }
     }
 
-    private getStatusIcon(status: string): string {
-        switch (status) {
-            case 'done':
-                return '[OK]'
-            case 'in-progress':
-                return '[WAIT]'
-            case 'blocked':
-                return '[BLOCK]'
-            case 'deferred':
-                return '[DATE]'
-            default:
-                return '⏸️'
-        }
+    private isProgression(oldStatus: string, newStatus: string): boolean {
+        const progressionOrder = ['pending', 'in-progress', 'done']
+        const oldIndex = progressionOrder.indexOf(oldStatus)
+        const newIndex = progressionOrder.indexOf(newStatus)
+        return oldIndex >= 0 && newIndex >= 0 && newIndex > oldIndex
     }
 
-    private getProgressIcon(newStatus: string, oldStatus: string): string {
-        if (newStatus === 'done' && oldStatus !== 'done') {
-            return '[SUCCESS]'
-        } else if (newStatus === 'in-progress' && oldStatus === 'pending') {
-            return '[START]'
-        } else if (newStatus === 'blocked') {
-            return '[WARN]'
+    private getNextSteps(epic: any, oldStatus: string, validatedArgs: any): string[] {
+        const nextSteps = []
+        
+        if (epic.status === 'in-progress' && oldStatus === 'pending') {
+            nextSteps.push('Create tasks within this epic to organize work')
+            nextSteps.push('Monitor task progress and update epic status accordingly')
+        } else if (epic.status === 'done' && oldStatus !== 'done') {
+            nextSteps.push('Epic completed successfully')
+            nextSteps.push('Review epic outcomes and lessons learned')
+        } else if (epic.status === 'blocked') {
+            nextSteps.push('Identify and resolve blocking issues')
+            nextSteps.push('Focus on unblocking dependent tasks')
         }
-        return '[NOTE]'
+        
+        if (validatedArgs.priority) {
+            nextSteps.push('Adjust task priorities within epic accordingly')
+        }
+        
+        nextSteps.push('Review epic progress and task completion rates')
+        nextSteps.push('Check parent idea progress to see overall alignment')
+        
+        return nextSteps
+    }
+
+    private getRecommendations(epic: any, oldStatus: string, validatedArgs: any): string[] {
+        const recommendations = []
+        
+        if (epic.status === 'in-progress') {
+            recommendations.push('Break down epic into specific, actionable tasks')
+            recommendations.push('Track task completion to monitor epic progress')
+        }
+        
+        if (epic.status === 'done') {
+            recommendations.push('Ensure all tasks within epic are completed')
+            recommendations.push('Review epic deliverables and impact')
+        }
+        
+        if (epic.status === 'blocked') {
+            recommendations.push('Identify specific blockers and create action plan')
+            recommendations.push('Focus on resolving dependencies before continuing')
+        }
+        
+        if (validatedArgs.priority === 'high') {
+            recommendations.push('High priority epic - ensure adequate resources')
+        }
+        
+        recommendations.push('Keep epic information up to date for team coordination')
+        recommendations.push('Align epic progress with strategic objectives')
+        
+        return recommendations
     }
 }

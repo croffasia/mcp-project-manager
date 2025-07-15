@@ -8,14 +8,47 @@ export class InitProjectTool extends BaseTool {
         super()
     }
 
+    /**
+     * Returns the name of the tool
+     * @returns The tool name
+     */
     getName(): string {
         return 'init_project'
     }
 
+    /**
+     * Returns the description of the tool with AI-guidance structure
+     * @returns The tool description with usage context
+     */
     getDescription(): string {
-        return 'Initialize project structure for task management: creates .product-task/ directory, database.sqlite for data storage, and project-config.json for configuration.'
+        return `Initialize project structure for task management: creates .product-task/ directory, database.sqlite for data storage, and project-config.json for configuration.
+        
+        WHEN TO USE:
+        - Starting a new project with MCP Task Manager
+        - Setting up task management infrastructure
+        - First-time project initialization
+        - Resetting project structure (if needed)
+        
+        PARAMETERS:
+        - No parameters required - automatically detects project context
+        
+        USAGE CONTEXT:
+        - Run once per project to set up infrastructure
+        - Safe to run multiple times (checks for existing setup)
+        - Analyzes package.json and README.md for project details
+        - Creates necessary directories and configuration files
+        
+        EXPECTED OUTCOMES:
+        - .product-task/ directory created with SQLite database
+        - project-config.json with project metadata and ID prefixes
+        - Ready-to-use task management system
+        - Clear next steps for creating first ideas and tasks`
     }
 
+    /**
+     * Returns the input schema for the tool
+     * @returns The JSON schema for tool input
+     */
     getInputSchema(): object {
         return {
             type: 'object',
@@ -24,7 +57,12 @@ export class InitProjectTool extends BaseTool {
         }
     }
 
-    async execute(args: any): Promise<ToolResult> {
+    /**
+     * Executes the project initialization process
+     * @param _args - The tool arguments (empty for this tool)
+     * @returns The initialization result with project setup details
+     */
+    async execute(_args: any): Promise<ToolResult> {
         const customDataDir = process.env.MCP_TASK_DATA_DIR
         const projectPath = customDataDir || process.cwd()
         const dataDir = join(projectPath, '.product-task')
@@ -38,38 +76,53 @@ export class InitProjectTool extends BaseTool {
         )
 
         if (isAlreadyInitialized) {
-            const result = `[INFO] MCP Task Manager is already initialized!
-
-[DIR] Existing structure:
-- .product-task/ directory [OK]
-- .product-task/database.sqlite file [OK]
-- project-config.json [OK]
-
-[START] You can continue using MCP Task Manager tools:
-1. Create idea: \`create_idea\`
-2. View tasks: \`list_all_tasks\`
-3. Get next task: \`next_task\``
-
             return {
                 content: [
                     {
                         type: 'text',
-                        text: result,
+                        text: JSON.stringify(
+                            {
+                                result: {
+                                    status: 'already_initialized',
+                                    structure: {
+                                        dataDirectory: '.product-task/',
+                                        database: 'database.sqlite',
+                                        config: 'project-config.json',
+                                    },
+                                },
+                                status: 'success',
+                                guidance: {
+                                    next_steps: [
+                                        'Project is ready for task management',
+                                        'Create your first idea to get started',
+                                        'Use existing tools to manage tasks and progress',
+                                    ],
+                                    context:
+                                        'MCP Task Manager is already initialized and ready to use',
+                                    recommendations: [
+                                        'Continue using existing task management tools',
+                                        'Start with creating ideas and breaking them into epics',
+                                        'Use next_task tool to get optimal work recommendations',
+                                    ],
+                                    suggested_commands: [
+                                        'pm create_idea "My First Idea"',
+                                        'pm list_all_tasks',
+                                        'pm next_task',
+                                    ],
+                                },
+                            },
+                            null,
+                            2
+                        ),
                     },
                 ],
                 metadata: {
                     operation: 'init',
                     operationSuccess: true,
                     alreadyInitialized: true,
-                    projectName: 'Existing Project',
                     hasDataDir: true,
                     hasDatabase: true,
                     hasConfig: true,
-                    suggestedCommands: [
-                        'create_idea',
-                        'list_all_tasks',
-                        'next_task',
-                    ],
                 },
             }
         }
@@ -95,40 +148,52 @@ export class InitProjectTool extends BaseTool {
 
         await fs.mkdir(dataDir, { recursive: true })
 
-        const storage = await this.getStorage()
-
-        const result = `[OK] MCP Task Manager initialized successfully!
-
-[DIR] Created:
-- .product-task/ directory
-- database.sqlite with universal schema
-- project-config.json with project details
-
-[NEW] Universal entity system:
-- All ideas, epics, tasks stored in one table
-- Standalone entities supported (tasks without epics, epics without ideas)
-- Fast SQLite queries and transactions
-
-[START] Get started with your first workflow:
-1. Create your first idea: Use \`create_idea\` tool
-2. Break it into epics: Use \`create_epic\` tool
-3. Add specific tasks: Use \`create_task\` tool
-4. Start working: Use \`update_task\` tool
-5. Track progress: Use \`update_task\` tool
-
-[LIST] Useful tools:
-- \`list_all_tasks\` - View all items
-- \`next_task\` - Get next task to work on
-- \`list_all_ideas\` - View all ideas
-- \`list_all_epics\` - View all epics
-
-[TIP] Pro tip: Start with 1-2 main ideas, then break them down into manageable epics and tasks!`
+        await this.getStorage()
 
         return {
             content: [
                 {
                     type: 'text',
-                    text: result,
+                    text: JSON.stringify(
+                        {
+                            result: {
+                                status: 'initialized',
+                                created: {
+                                    dataDirectory: '.product-task/',
+                                    database: 'database.sqlite',
+                                    config: 'project-config.json',
+                                },
+                                project: {
+                                    name: projectInfo.name,
+                                    description: projectInfo.description,
+                                },
+                                entitySystem: {
+                                    prefixes: config.prefixes,
+                                    separator: config.separator,
+                                },
+                            },
+                            status: 'success',
+                            guidance: {
+                                next_steps: this.getNextSteps(false),
+                                context: `MCP Task Manager initialized successfully for project "${projectInfo.name}"`,
+                                recommendations: this.getRecommendations(false),
+                                workflow_steps: [
+                                    'Create your first idea using create_idea tool',
+                                    'Break idea into epics using create_epic tool',
+                                    'Add specific tasks using create_task tool',
+                                    'Start working and track progress with update_task tool',
+                                    'Use next_task for optimal work recommendations',
+                                ],
+                                suggested_commands: [
+                                    'pm create_idea "My First Idea"',
+                                    'pm list_all_tasks',
+                                    'pm next_task',
+                                ],
+                            },
+                        },
+                        null,
+                        2
+                    ),
                 },
             ],
             metadata: {
@@ -139,13 +204,6 @@ export class InitProjectTool extends BaseTool {
                 hasDataDir: true,
                 hasDatabase: true,
                 hasConfig: true,
-                suggestedCommands: [
-                    'create_idea',
-                    'create_epic',
-                    'create_task',
-                    'list_all_tasks',
-                    'next_task',
-                ],
             },
         }
     }
@@ -222,5 +280,60 @@ export class InitProjectTool extends BaseTool {
                 description: 'Project managed with MCP Task Manager',
             }
         }
+    }
+
+    private getNextSteps(alreadyInitialized: boolean): string[] {
+        const nextSteps = []
+
+        if (alreadyInitialized) {
+            nextSteps.push('Project is ready for task management')
+            nextSteps.push('Create your first idea to get started')
+            nextSteps.push('Use existing tools to manage tasks and progress')
+        } else {
+            nextSteps.push('Project infrastructure successfully created')
+            nextSteps.push('Create your first idea to organize work')
+            nextSteps.push(
+                'Break ideas into epics and tasks for detailed planning'
+            )
+            nextSteps.push(
+                'Use next_task tool to get optimal work recommendations'
+            )
+        }
+
+        nextSteps.push('Explore available tools for task management')
+        nextSteps.push('Review project structure and entity organization')
+
+        return nextSteps
+    }
+
+    private getRecommendations(alreadyInitialized: boolean): string[] {
+        const recommendations = []
+
+        if (alreadyInitialized) {
+            recommendations.push(
+                'Continue using existing task management tools'
+            )
+            recommendations.push(
+                'Start with creating ideas and breaking them into epics'
+            )
+        } else {
+            recommendations.push(
+                'Start with 1-2 main ideas for better organization'
+            )
+            recommendations.push(
+                'Use hierarchical structure: Ideas → Epics → Tasks'
+            )
+            recommendations.push(
+                'Set clear priorities and dependencies between tasks'
+            )
+        }
+
+        recommendations.push(
+            'Use next_task tool for optimal work recommendations'
+        )
+        recommendations.push('Track progress regularly with update_task tool')
+        recommendations.push('Review and adjust project structure as needed')
+
+        return recommendations
     }
 }

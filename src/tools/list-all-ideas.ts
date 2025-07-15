@@ -20,11 +20,32 @@ export class ListAllIdeasTool extends BaseTool {
     }
 
     /**
-     * Returns the description of the tool
-     * @returns The tool description
+     * Returns the description of the tool with AI-guidance structure
+     * @returns The tool description with usage context
      */
     getDescription(): string {
-        return 'List all ideas in the project with epic counts, task progress statistics, priority distribution, and status breakdown'
+        return `List all ideas in the project with epic counts, task progress statistics, priority distribution, and status breakdown.
+        
+        WHEN TO USE:
+        - Need high-level overview of all project ideas
+        - Planning strategic project direction and priorities
+        - Tracking progress at the idea level across multiple epics
+        - Understanding overall project structure and organization
+        
+        PARAMETERS:
+        - No parameters required - returns all ideas
+        
+        USAGE CONTEXT:
+        - Essential for project managers and stakeholders reviewing progress
+        - Provides strategic view of project implementation status
+        - Helps identify high-level bottlenecks and priority areas
+        - Used for executive reporting and project planning
+        
+        EXPECTED OUTCOMES:
+        - Complete overview of all ideas with comprehensive statistics
+        - Progress tracking across epic and task levels
+        - Priority and status distribution analysis
+        - Strategic insights for project direction and resource allocation`
     }
 
     /**
@@ -40,9 +61,10 @@ export class ListAllIdeasTool extends BaseTool {
 
     /**
      * Executes the idea listing with comprehensive statistics
+     * @param _args - The tool arguments (empty for this tool)
      * @returns The listing result with idea details and statistics
      */
-    async execute(): Promise<ToolResult> {
+    async execute(_args?: any): Promise<ToolResult> {
         const storage = await this.getStorage()
 
         const allIdeas = await storage.loadAllIdeas()
@@ -52,15 +74,42 @@ export class ListAllIdeasTool extends BaseTool {
                 content: [
                     {
                         type: 'text',
-                        text: `[TIP] **All Ideas Overview**
-
-[ERROR] **No ideas found**
-
-[NOTE] **Get started:**
-- **Create your first idea**: \`pm create idea "My First Idea"\`
-- **Initialize project**: \`pm init\` (if not done)
-
-[TIP] **Pro tip**: Ideas are high-level features or concepts that contain epics and tasks!`,
+                        text: JSON.stringify(
+                            {
+                                result: {
+                                    ideas: [],
+                                    summary: {
+                                        totalCount: 0,
+                                        completedCount: 0,
+                                        inProgressCount: 0,
+                                        blockedCount: 0,
+                                        totalEpics: 0,
+                                        totalTasks: 0,
+                                        completedTasks: 0,
+                                    },
+                                },
+                                status: 'warning',
+                                guidance: {
+                                    next_steps: [
+                                        'Create your first idea to organize project work',
+                                        'Initialize project structure if not done yet',
+                                        'Start with high-level feature concepts',
+                                    ],
+                                    context: 'No ideas found in the project',
+                                    recommendations: [
+                                        'Ideas are high-level features or concepts that contain epics and tasks',
+                                        'Start with 1-2 main ideas for better organization',
+                                        'Use hierarchical structure: Ideas → Epics → Tasks',
+                                    ],
+                                    suggested_commands: [
+                                        'pm create_idea "My First Idea"',
+                                        'pm init_project',
+                                    ],
+                                },
+                            },
+                            null,
+                            2
+                        ),
                     },
                 ],
                 metadata: {
@@ -73,10 +122,6 @@ export class ListAllIdeasTool extends BaseTool {
                     blockedCount: 0,
                     totalEpics: 0,
                     totalTasks: 0,
-                    suggestedCommands: [
-                        'pm create idea "My First Idea"',
-                        'pm init',
-                    ],
                 },
             }
         }
@@ -146,55 +191,79 @@ export class ListAllIdeasTool extends BaseTool {
         const statusCounts = this.getStatusCounts(allIdeas)
         const priorityCounts = this.getPriorityCounts(allIdeas)
 
-        const responseText = `[TIP] **All Ideas Overview** (${allIdeas.length} total)
-
-**Summary Statistics:**
-- **Total Epics**: ${totalEpics}
-- **Total Tasks**: ${totalTasks}
-- **Completed Tasks**: ${completedTasksTotal} (${totalTasks > 0 ? Math.round((completedTasksTotal / totalTasks) * 100) : 0}%)
-- **In Progress**: ${inProgressTasksTotal}
-- **Blocked**: ${blockedTasksTotal}
-
-**Idea Status Distribution:**
-${Object.entries(statusCounts)
-    .sort((a, b) => b[1] - a[1])
-    .map(([status, count]) => `- **${status}**: ${count}`)
-    .join('\n')}
-
-**Priority Distribution:**
-${Object.entries(priorityCounts)
-    .sort((a, b) => b[1] - a[1])
-    .map(([priority, count]) => `- **${priority}**: ${count}`)
-    .join('\n')}
-
-**Idea Details:**
-${ideasWithStats
-    .map(
-        (idea) =>
-            `${this.getStatusIcon(idea.status)} **${idea.title}** (${idea.id})
-  - **Status**: ${idea.status} | **Priority**: ${idea.priority}
-  - **Epics**: ${idea.completedEpics}/${idea.epicCount} completed (${idea.epicProgressPercent}%)
-  - **Tasks**: ${idea.completedTasks}/${idea.taskCount} completed (${idea.taskProgressPercent}%)
-  - **Created**: ${idea.createdAt.toLocaleDateString()}
-  ${idea.blockedTasks > 0 ? `  - [BLOCK] **${idea.blockedTasks} blocked tasks**` : ''}
-  ${idea.inProgressTasks > 0 ? `  - [WAIT] **${idea.inProgressTasks} in progress**` : ''}`
-    )
-    .join('\n\n')}
-
-**Quick Actions:**
-- **Create new idea**: \`pm create idea "Idea Title"\`
-- **View specific idea**: \`pm get_idea IDEA-ID\`
-- **View all epics**: \`pm list epics\`
-- **View all tasks**: \`pm list tasks\`
-- **Get next task**: \`pm next\`
-
-[TIP] **Pro tip**: Focus on high-priority ideas with blocked tasks to unblock development!`
-
         return {
             content: [
                 {
                     type: 'text',
-                    text: responseText,
+                    text: JSON.stringify(
+                        {
+                            result: {
+                                ideas: ideasWithStats.map((idea) => ({
+                                    id: idea.id,
+                                    title: idea.title,
+                                    description: idea.description,
+                                    status: idea.status,
+                                    priority: idea.priority,
+                                    createdAt: idea.createdAt.toISOString(),
+                                    epicCount: idea.epicCount,
+                                    taskCount: idea.taskCount,
+                                    completedEpics: idea.completedEpics,
+                                    completedTasks: idea.completedTasks,
+                                    inProgressTasks: idea.inProgressTasks,
+                                    blockedTasks: idea.blockedTasks,
+                                    epicProgressPercent:
+                                        idea.epicProgressPercent,
+                                    taskProgressPercent:
+                                        idea.taskProgressPercent,
+                                })),
+                                summary: {
+                                    totalCount: allIdeas.length,
+                                    completedCount: allIdeas.filter(
+                                        (i) => i.status === 'done'
+                                    ).length,
+                                    inProgressCount: allIdeas.filter(
+                                        (i) => i.status === 'in-progress'
+                                    ).length,
+                                    blockedCount: allIdeas.filter(
+                                        (i) => i.status === 'blocked'
+                                    ).length,
+                                    totalEpics: totalEpics,
+                                    totalTasks: totalTasks,
+                                    completedTasks: completedTasksTotal,
+                                    taskProgressPercent:
+                                        totalTasks > 0
+                                            ? Math.round(
+                                                  (completedTasksTotal /
+                                                      totalTasks) *
+                                                      100
+                                              )
+                                            : 0,
+                                },
+                                distributions: {
+                                    status: statusCounts,
+                                    priority: priorityCounts,
+                                },
+                            },
+                            status: 'success',
+                            guidance: {
+                                next_steps: this.getNextSteps(
+                                    allIdeas,
+                                    ideasWithStats
+                                ),
+                                context: `Found ${allIdeas.length} ideas with ${totalEpics} epics and ${totalTasks} tasks (${completedTasksTotal} completed)`,
+                                recommendations:
+                                    this.getRecommendations(ideasWithStats),
+                                suggested_commands: [
+                                    'pm create_idea "Idea Title"',
+                                    'pm get_idea [IDEA-ID]',
+                                    'pm list_all_epics',
+                                    'pm next_task',
+                                ],
+                            },
+                        },
+                        null,
+                        2
+                    ),
                 },
             ],
             metadata: {
@@ -216,34 +285,96 @@ ${ideasWithStats
                     totalTasks > 0
                         ? Math.round((completedTasksTotal / totalTasks) * 100)
                         : 0,
-                suggestedCommands: [
-                    'pm create idea "Idea Title"',
-                    'pm get_idea IDEA-ID',
-                    'pm list epics',
-                    'pm next',
-                ],
             },
         }
     }
 
-    /**
-     * Returns an appropriate status icon for the given status
-     * @param status - The status string
-     * @returns The status icon
-     */
-    private getStatusIcon(status: string): string {
-        switch (status) {
-            case 'done':
-                return '[OK]'
-            case 'in-progress':
-                return '[WAIT]'
-            case 'blocked':
-                return '[BLOCK]'
-            case 'deferred':
-                return '[DATE]'
-            default:
-                return '⏸️'
+    private getNextSteps(allIdeas: any[], ideasWithStats: any[]): string[] {
+        const nextSteps = []
+
+        if (allIdeas.length === 0) {
+            nextSteps.push('Create your first idea to organize project work')
+            nextSteps.push('Start with high-level feature concepts')
+        } else {
+            const blockedIdeas = ideasWithStats.filter(
+                (i) => i.blockedTasks > 0
+            )
+            const inProgressIdeas = ideasWithStats.filter(
+                (i) => i.status === 'in-progress'
+            )
+            const highPriorityIdeas = ideasWithStats.filter(
+                (i) => i.priority === 'high'
+            )
+
+            if (blockedIdeas.length > 0) {
+                nextSteps.push(
+                    `Address ${blockedIdeas.length} ideas with blocked tasks`
+                )
+            }
+
+            if (inProgressIdeas.length > 0) {
+                nextSteps.push(
+                    `Continue work on ${inProgressIdeas.length} in-progress ideas`
+                )
+            }
+
+            if (highPriorityIdeas.length > 0) {
+                nextSteps.push(
+                    `Focus on ${highPriorityIdeas.length} high-priority ideas`
+                )
+            }
         }
+
+        nextSteps.push('Use next_task to get optimal work recommendations')
+        nextSteps.push('Review idea progress and strategic alignment')
+
+        return nextSteps
+    }
+
+    private getRecommendations(ideasWithStats: any[]): string[] {
+        const recommendations = []
+
+        if (ideasWithStats.length === 0) {
+            recommendations.push(
+                'Start with 1-2 main ideas for better organization'
+            )
+            recommendations.push(
+                'Use hierarchical structure: Ideas → Epics → Tasks'
+            )
+        } else {
+            const blockedIdeas = ideasWithStats.filter(
+                (i) => i.blockedTasks > 0
+            )
+            const lowProgressIdeas = ideasWithStats.filter(
+                (i) => i.taskProgressPercent < 25
+            )
+            const nearCompleteIdeas = ideasWithStats.filter(
+                (i) => i.taskProgressPercent > 80
+            )
+
+            if (blockedIdeas.length > 0) {
+                recommendations.push(
+                    'Focus on unblocking tasks in blocked ideas'
+                )
+            }
+
+            if (nearCompleteIdeas.length > 0) {
+                recommendations.push(
+                    'Push to complete ideas that are near completion'
+                )
+            }
+
+            if (lowProgressIdeas.length > 0) {
+                recommendations.push(
+                    'Break down low-progress ideas into more actionable epics'
+                )
+            }
+        }
+
+        recommendations.push('Monitor strategic alignment and priority balance')
+        recommendations.push('Adjust idea priorities based on business value')
+
+        return recommendations
     }
 
     /**

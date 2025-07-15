@@ -9,13 +9,7 @@ const createIdeaSchema = z.object({
     priority: z.enum(['low', 'medium', 'high']).optional(),
 })
 
-/**
- * Tool for creating new high-level feature ideas that can contain multiple epics
- */
 export class CreateIdeaTool extends BaseTool {
-    /**
-     * Creates a new instance of CreateIdeaTool
-     */
     constructor() {
         super()
     }
@@ -29,13 +23,34 @@ export class CreateIdeaTool extends BaseTool {
     }
 
     /**
-     * Returns the description of the tool
-     * @returns The tool description
+     * Returns the description of the tool with AI-guidance structure
+     * @returns The tool description with usage context
      */
     getDescription(): string {
-        return 'Create a new high-level feature idea that can contain multiple epics'
+        return `Create a new high-level feature idea that can contain multiple epics.
+        
+        WHEN TO USE:
+        - Starting a new major feature or project
+        - Organizing high-level concepts that need multiple epics
+        - Creating strategic development initiatives
+        - Planning large-scale features or products
+        
+        PARAMETERS:
+        - title: Short, descriptive name for the idea
+        - description: Detailed explanation of the idea's purpose and scope
+        - priority: Optional priority level (low, medium, high)
+        
+        USAGE CONTEXT:
+        - Use at the beginning of feature planning
+        - Ideas should be broad enough to contain 2-4 epics
+        - Should represent significant business value
+        
+        EXPECTED OUTCOMES:
+        - New idea created with unique ID
+        - Ready for epic breakdown and planning
+        - Integrated into project management system
+        - Clear next steps for development progression`
     }
-
     /**
      * Returns the input schema for the tool
      * @returns The JSON schema for tool input
@@ -84,44 +99,73 @@ export class CreateIdeaTool extends BaseTool {
 
         await storage.saveIdea(idea)
 
-        const responseText = `[OK] Idea created successfully!
-
-[IDEA] ${idea.title}
-├─ ID: \`${idea.id}\`
-├─ Status: [WAIT] ${idea.status}
-├─ Created: ${idea.createdAt.toLocaleDateString()}
-└─ Description: ${idea.description}`
-        const nextSteps = `
-
-[START] Recommended next steps:
-1. Break down into epics: \`pm create epic "${idea.title} - Phase 1"\`
-2. Add more epics: \`pm create epic "${idea.title} - Phase 2"\`
-3. View your ideas: \`pm list ideas\`
-4. Get next task: \`pm next\`
-
-[TIP] Pro tip: Break large ideas into 2-4 epics for better organization!`
-
         return {
             content: [
                 {
                     type: 'text',
-                    text: responseText + nextSteps,
+                    text: JSON.stringify(
+                        {
+                            result: {
+                                idea: {
+                                    id: idea.id,
+                                    title: idea.title,
+                                    description: idea.description,
+                                    status: idea.status,
+                                    priority: idea.priority,
+                                    createdAt: idea.createdAt.toISOString(),
+                                },
+                            },
+                            status: 'success',
+                            guidance: {
+                                next_steps: this.getNextSteps(idea),
+                                context: `Created idea "${idea.title}" - ready for epic breakdown`,
+                                recommendations: this.getRecommendations(idea),
+                                suggested_commands: [
+                                    `pm create epic "${idea.title} - Phase 1"`,
+                                    `pm get_idea ${idea.id}`,
+                                    `pm list ideas`,
+                                ],
+                            },
+                        },
+                        null,
+                        2
+                    ),
                 },
             ],
             metadata: {
                 entityType: 'idea',
                 entityId: idea.id,
-                entityStatus: idea.status,
-                entityPriority: idea.priority,
                 operation: 'create',
                 operationSuccess: true,
-                suggestedCommands: [
-                    `pm create epic "${idea.title} - Phase 1"`,
-                    `pm create epic "${idea.title} - Phase 2"`,
-                    `pm list ideas`,
-                    `pm next`,
-                ],
             },
         }
+    }
+
+    private getNextSteps(idea: any): string[] {
+        return [
+            'Break down idea into 2-4 epics representing major phases',
+            'Define clear objectives for each epic',
+            'Consider dependencies between epics',
+            'Start with highest priority epic',
+        ]
+    }
+
+    private getRecommendations(idea: any): string[] {
+        const recommendations = []
+
+        if (idea.priority === 'high') {
+            recommendations.push(
+                'High priority - consider starting immediately'
+            )
+        }
+
+        if (idea.description.length < 100) {
+            recommendations.push('Consider adding more detailed description')
+        }
+
+        recommendations.push('Break into 2-4 epics for optimal management')
+        recommendations.push('Define clear success criteria for the idea')
+
+        return recommendations
     }
 }

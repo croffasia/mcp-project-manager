@@ -11,14 +11,46 @@ export class GetTaskTool extends BaseTool {
         super()
     }
 
+    /**
+     * Returns the name of the tool
+     * @returns The tool name
+     */
     getName(): string {
         return 'get_task'
     }
 
+    /**
+     * Returns the description of the tool with AI-guidance structure
+     * @returns The tool description with usage context
+     */
     getDescription(): string {
-        return 'Retrieve detailed information about a specific task including dependencies, progress notes, parent epic, and full context'
+        return `Retrieve detailed information about a specific task including dependencies, progress notes, parent epic, and full context.
+        
+        WHEN TO USE:
+        - Before starting work on a specific task
+        - Need to understand task dependencies and blockers
+        - Checking task progress and current status
+        - Understanding task context within epic and idea
+        
+        PARAMETERS:
+        - taskId: String identifier of the task (format: TSK-N)
+        
+        USAGE CONTEXT:
+        - Essential before executing any task work
+        - Provides dependency analysis and readiness assessment
+        - Shows historical progress and notes
+        
+        EXPECTED OUTCOMES:
+        - Complete task information with dependency status
+        - Readiness assessment for task execution
+        - Progress history and current context
+        - Actionable next steps for task completion`
     }
 
+    /**
+     * Returns the input schema for the tool
+     * @returns The JSON schema for tool input
+     */
     getInputSchema(): object {
         return {
             type: 'object',
@@ -29,6 +61,11 @@ export class GetTaskTool extends BaseTool {
         }
     }
 
+    /**
+     * Executes the task retrieval process
+     * @param args - The tool arguments containing taskId
+     * @returns The task details with dependency analysis and guidance
+     */
     async execute(args: any): Promise<ToolResult> {
         const validatedArgs = this.validate(getTaskSchema, args)
         const storage = await this.getStorage()
@@ -56,49 +93,74 @@ export class GetTaskTool extends BaseTool {
         // Get progress notes
         const progressNotes = task.progressNotes || []
 
-        const responseText = `[TASK] "${task.title}"
-
-**Basic Information:**
-- **ID**: ${task.id}
-- **Parent Epic**: ${epicTitle}
-- **Parent Idea**: ${ideaTitle}
-- **Type**: ${task.type}
-- **Status**: ${task.status}
-- **Priority**: ${task.priority}
-- **Created**: ${task.createdAt.toLocaleDateString()}
-- **Updated**: ${task.updatedAt.toLocaleDateString()}
-
-**Description:**
-${task.description}
-
-**Dependencies (${dependencies.length}):**
-${this.formatDependencies(dependencies)}
-
-**Progress Notes (${progressNotes.length}):**
-${this.formatProgressNotes(progressNotes)}
-
-**Task Analysis:**
-${this.analyzeTask(task)}
-
-**Next Steps:**
-- **Update status**: \`pm update task ${task.id} status in-progress\`
-- **Add progress**: \`pm update task ${task.id} progress "Current progress update"\`
-- **View dependencies**: \`pm get_dependencies ${task.id}\`
-- **View parent epic**: \`pm get_epic ${task.epicId}\`
-
-**🤖 FOR AI SYSTEMS - CRITICAL:**
-**If user asks you to EXECUTE or WORK ON this task, you MUST:**
-1. **Use the task-execution-guide prompt first**: \`Use prompt task-execution-guide with task data\`
-2. **Follow the execution protocol strictly** - check dependencies, confirm understanding, follow DoD
-3. **DO NOT start implementation without using the guide**
-
-[TIP] Pro tip: Update progress regularly to track your work effectively!`
+        const canStart =
+            dependencies.length === 0 ||
+            dependencies.every((dep) => dep.status === 'done')
+        const blockedDeps = dependencies.filter(
+            (dep) => dep.status === 'blocked'
+        ).length
+        const pendingDeps = dependencies.filter(
+            (dep) => dep.status === 'pending'
+        ).length
 
         return {
             content: [
                 {
                     type: 'text',
-                    text: responseText,
+                    text: JSON.stringify(
+                        {
+                            result: {
+                                task: {
+                                    id: task.id,
+                                    title: task.title,
+                                    description: task.description,
+                                    type: task.type,
+                                    status: task.status,
+                                    priority: task.priority,
+                                    parentEpicId: task.epicId,
+                                    parentEpicTitle: epicTitle,
+                                    parentIdeaTitle: ideaTitle,
+                                },
+                                dependencies: dependencies.map((dep) => ({
+                                    id: dep.id,
+                                    title: dep.title,
+                                    status: dep.status,
+                                    priority: dep.priority,
+                                    isBlocking: dep.status !== 'done',
+                                })),
+                                progressNotes: progressNotes
+                                    .slice(0, 5)
+                                    .map((note) => ({
+                                        timestamp: note.timestamp,
+                                        content: note.content,
+                                    })),
+                                readiness: {
+                                    canStart,
+                                    blockedDependencies: blockedDeps,
+                                    pendingDependencies: pendingDeps,
+                                },
+                            },
+                            status: 'success',
+                            guidance: {
+                                next_steps: this.getNextSteps(
+                                    task,
+                                    dependencies,
+                                    canStart
+                                ),
+                                context: `Task "${task.title}" is ${task.status} with ${dependencies.length} dependencies`,
+                                recommendations: this.getRecommendations(
+                                    task,
+                                    dependencies,
+                                    canStart
+                                ),
+                                readiness_assessment: canStart
+                                    ? 'Ready to start'
+                                    : 'Blocked by dependencies',
+                            },
+                        },
+                        null,
+                        2
+                    ),
                 },
             ],
             metadata: {
@@ -106,17 +168,9 @@ ${this.analyzeTask(task)}
                 entityId: task.id,
                 operation: 'get',
                 operationSuccess: true,
-                taskStatus: task.status,
-                taskPriority: task.priority,
-                taskType: task.type,
-                dependenciesCount: dependencies.length,
-                progressNotesCount: progressNotes.length,
-                parentEpicId: task.epicId,
-                suggestedCommands: [
-                    `pm update task ${task.id} status in-progress`,
-                    `pm update task ${task.id} progress "Current progress update"`,
-                    `pm get_dependencies ${task.id}`,
-                ],
+                canStart,
+                blockedDeps,
+                pendingDeps,
             },
         }
     }
@@ -139,155 +193,71 @@ ${this.analyzeTask(task)}
         return dependencies
     }
 
-    private formatDependencies(dependencies: any[]): string {
-        if (dependencies.length === 0) {
-            return '[FREE] No dependencies - ready to start immediately'
-        }
+    private getNextSteps(
+        task: any,
+        dependencies: any[],
+        canStart: boolean
+    ): string[] {
+        const nextSteps = []
 
-        const depLines = dependencies
-            .map((dep) => {
-                const statusIcon = this.getStatusIcon(dep.status)
-                const blockingIndicator =
-                    dep.status !== 'done' ? ' ⚠️ **BLOCKING**' : ''
-                return `- ${statusIcon} **${dep.title}** (${dep.id}) - ${dep.status} - ${dep.priority} priority${blockingIndicator}`
-            })
-            .join('\n')
-
-        const completedDeps = dependencies.filter(
-            (d) => d.status === 'done'
-        ).length
-        const blockedDeps = dependencies.filter(
-            (d) => d.status === 'blocked'
-        ).length
-        const inProgressDeps = dependencies.filter(
-            (d) => d.status === 'in-progress'
-        ).length
-        const pendingDeps = dependencies.filter(
-            (d) => d.status === 'pending'
-        ).length
-
-        let statusSummary = ''
-        if (completedDeps === dependencies.length) {
-            statusSummary =
-                '\n\n[OK] **All dependencies completed** - task is ready to start!'
-        } else if (blockedDeps > 0) {
-            statusSummary = `\n\n[BLOCK] **CRITICAL: ${blockedDeps} dependencies are blocked** - cannot proceed until resolved`
-            statusSummary += `\n💡 **Action needed**: Focus on unblocking dependencies first`
-        } else if (inProgressDeps > 0) {
-            statusSummary = `\n\n[WAIT] **${inProgressDeps} dependencies in progress** - wait for completion before starting`
-            statusSummary += `\n💡 **Suggestion**: Monitor progress of active dependencies`
-        } else if (pendingDeps > 0) {
-            statusSummary = `\n\n[DEPS] **${pendingDeps} dependencies pending** - start dependent tasks first`
-            statusSummary += `\n💡 **Action needed**: Work on pending dependencies before this task`
-        }
-
-        statusSummary += `\n\n**Dependency Status Overview:**`
-        statusSummary += `\n- ✅ **Completed**: ${completedDeps}/${dependencies.length}`
-        if (inProgressDeps > 0)
-            statusSummary += `\n- 🔄 **In Progress**: ${inProgressDeps}`
-        if (pendingDeps > 0)
-            statusSummary += `\n- ⏸️ **Pending**: ${pendingDeps}`
-        if (blockedDeps > 0)
-            statusSummary += `\n- ❌ **Blocked**: ${blockedDeps}`
-
-        return depLines + statusSummary
-    }
-
-    private getStatusIcon(status: string): string {
-        switch (status) {
-            case 'done':
-                return '[OK]'
-            case 'in-progress':
-                return '[WAIT]'
-            case 'blocked':
-                return '[BLOCK]'
-            case 'deferred':
-                return '[DATE]'
-            default:
-                return '⏸️'
-        }
-    }
-
-    private formatProgressNotes(notes: any[]): string {
-        if (notes.length === 0) {
-            return '- No progress notes yet\n- [NOTE] Suggestion: Add notes to track your work'
-        }
-
-        if (notes.length <= 3) {
-            return notes
-                .sort(
-                    (a, b) =>
-                        new Date(b.timestamp).getTime() -
-                        new Date(a.timestamp).getTime()
-                )
-                .map(
-                    (note) =>
-                        `- **${new Date(note.timestamp).toLocaleDateString()}**: ${note.content}`
-                )
-                .join('\n')
-        } else {
-            const recentNotes = notes
-                .sort(
-                    (a, b) =>
-                        new Date(b.timestamp).getTime() -
-                        new Date(a.timestamp).getTime()
-                )
-                .slice(0, 3)
-
-            const recentLines = recentNotes
-                .map(
-                    (note) =>
-                        `- **${new Date(note.timestamp).toLocaleDateString()}**: ${note.content}`
-                )
-                .join('\n')
-
-            return `**Recent progress:**
-${recentLines}
-
-*${notes.length - 3} older notes - view full history in task details*`
-        }
-    }
-
-    private analyzeTask(task: any): string {
-        const analysis = []
-
-        // Status analysis
-        switch (task.status) {
-            case 'pending':
-                analysis.push(
-                    '[READY] Ready to start - consider beginning work'
-                )
-                break
-            case 'in-progress':
-                analysis.push(
-                    '[ACTIVE] Active work - add regular progress updates'
-                )
-                break
-            case 'blocked':
-                analysis.push('[BLOCK] Blocked - resolve blockers to continue')
-                break
-            case 'done':
-                analysis.push('[OK] Completed - task finished successfully')
-                break
-            case 'deferred':
-                analysis.push('[DEFER] Deferred - scheduled for later work')
-                break
-        }
-
-        // Priority analysis
-        if (task.priority === 'high') {
-            analysis.push('[HIGH] High priority - focus on this task')
-        } else if (task.priority === 'low') {
-            analysis.push('[LOW] Low priority - work on when time permits')
-        }
-
-        // Dependencies analysis
-        if (task.dependencies && task.dependencies.length > 0) {
-            analysis.push(
-                `[DEPS] Has ${task.dependencies.length} dependencies - check completion status above`
+        if (!canStart) {
+            const blockedDeps = dependencies.filter(
+                (dep) => dep.status === 'blocked'
             )
+            const pendingDeps = dependencies.filter(
+                (dep) => dep.status === 'pending'
+            )
+
+            if (blockedDeps.length > 0) {
+                nextSteps.push(
+                    `Unblock ${blockedDeps.length} blocked dependencies`
+                )
+            }
+            if (pendingDeps.length > 0) {
+                nextSteps.push(
+                    `Complete ${pendingDeps.length} pending dependencies`
+                )
+            }
+        } else {
+            if (task.status === 'pending') {
+                nextSteps.push('Start working on this task')
+            } else if (task.status === 'in-progress') {
+                nextSteps.push('Continue working on this task')
+            } else if (task.status === 'blocked') {
+                nextSteps.push('Resolve blocking issues')
+            }
         }
 
-        return analysis.join('\n')
+        nextSteps.push('Add progress notes to track work')
+        return nextSteps
+    }
+
+    private getRecommendations(
+        task: any,
+        _dependencies: any[],
+        canStart: boolean
+    ): string[] {
+        const recommendations = []
+
+        if (!canStart) {
+            recommendations.push('Focus on completing dependencies first')
+        } else {
+            if (task.status === 'pending') {
+                recommendations.push(
+                    'This task is ready to start - no blockers'
+                )
+            }
+            if (task.priority === 'high') {
+                recommendations.push(
+                    'High priority task - consider prioritizing'
+                )
+            }
+        }
+
+        if (task.description.length < 50) {
+            recommendations.push('Consider adding more detailed description')
+        }
+
+        return recommendations
     }
 }

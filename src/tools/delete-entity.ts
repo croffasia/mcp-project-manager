@@ -26,11 +26,32 @@ export class DeleteEntityTool extends BaseTool {
     }
 
     /**
-     * Returns the description of the tool
-     * @returns The tool description
+     * Returns the description of the tool with AI-guidance structure
+     * @returns The tool description with usage context
      */
     getDescription(): string {
-        return 'Delete an existing entity (idea, epic, or task) permanently - removes the entity and all its dependencies (epics contain tasks, ideas contain epics and tasks)'
+        return `Delete an existing entity (idea, epic, or task) permanently - removes the entity and all its dependencies.
+        
+        WHEN TO USE:
+        - Need to permanently remove unused ideas, epics, or tasks
+        - Cleaning up development artifacts and experiments
+        - Removing entities that are no longer relevant
+        - Correcting project structure by removing mistaken entities
+        
+        PARAMETERS:
+        - entityId: String identifier of the entity to delete (IDEA-N, EPIC-N, TSK-N, BUG-N, RND-N)
+        
+        USAGE CONTEXT:
+        - Use with caution - deletion is permanent
+        - For tasks: checks for dependent tasks and prevents deletion if found
+        - For epics: deletes all contained tasks
+        - For ideas: deletes all contained epics and tasks
+        
+        EXPECTED OUTCOMES:
+        - Entity and all dependencies permanently removed
+        - Confirmation of deletion with affected entity counts
+        - Guidance on next steps after deletion
+        - Suggestions for workflow continuation`
     }
 
     /**
@@ -133,43 +154,44 @@ export class DeleteEntityTool extends BaseTool {
         // Delete the idea itself
         await storage.deleteIdea(ideaId)
 
-        const responseText = `[OK] **Idea deleted successfully!**
-
-**Deleted Idea Details:**
-├─ ID: \`${idea.id}\`
-├─ Title: "${idea.title}"
-├─ Type: ${idea.type}
-├─ Status: ${idea.status}
-├─ Epics Deleted: ${deletedCount.epics}
-└─ Tasks Deleted: ${deletedCount.tasks}
-
-**⚠️ IMPORTANT:**
-- Idea and ALL its contents have been permanently removed
-- ${deletedCount.epics} epics and ${deletedCount.tasks} tasks were deleted
-- All progress notes and history have been deleted
-- This operation cannot be undone`
-
-        const nextSteps = `
-
-**🎯 NEXT STEPS:**
-
-**IMMEDIATE ACTIONS:**
-1. **Review project**: \`pm list ideas\` - Check remaining ideas
-2. **Continue work**: \`pm next\` - Get next available task
-3. **Check dependencies**: Verify no other entities were depending on deleted items
-
-**WORKFLOW RECOMMENDATIONS:**
-- **List all ideas**: \`pm list ideas\`
-- **Get next task**: \`pm next\`
-- **Create replacement**: \`pm create idea "New Idea Title"\` (if needed)
-
-[TIP] **For AI agents**: Idea deletion removes the entire hierarchy. This is a major operation that affects project structure.`
-
         return {
             content: [
                 {
                     type: 'text',
-                    text: responseText + nextSteps,
+                    text: JSON.stringify(
+                        {
+                            result: {
+                                deleted: {
+                                    id: idea.id,
+                                    title: idea.title,
+                                    type: idea.type,
+                                    status: idea.status,
+                                    deletedEpicsCount: deletedCount.epics,
+                                    deletedTasksCount: deletedCount.tasks,
+                                },
+                            },
+                            status: 'success',
+                            guidance: {
+                                next_steps: this.getNextSteps(
+                                    'idea',
+                                    idea.id,
+                                    deletedCount
+                                ),
+                                context: `Idea "${idea.title}" and all its contents (${deletedCount.epics} epics, ${deletedCount.tasks} tasks) have been permanently deleted`,
+                                recommendations: this.getRecommendations(
+                                    'idea',
+                                    deletedCount
+                                ),
+                                suggested_commands: [
+                                    `pm list ideas`,
+                                    `pm next`,
+                                    `pm create idea "New Idea Title"`,
+                                ],
+                            },
+                        },
+                        null,
+                        2
+                    ),
                 },
             ],
             metadata: {
@@ -177,14 +199,8 @@ export class DeleteEntityTool extends BaseTool {
                 entityId: idea.id,
                 operation: 'delete',
                 operationSuccess: true,
-                deletedIdeaTitle: idea.title,
                 deletedEpicsCount: deletedCount.epics,
                 deletedTasksCount: deletedCount.tasks,
-                suggestedCommands: [
-                    `pm list ideas`,
-                    `pm next`,
-                    `pm create idea "New Idea Title"`,
-                ],
             },
         }
     }
@@ -222,45 +238,44 @@ export class DeleteEntityTool extends BaseTool {
         // Delete the epic itself
         await storage.deleteEpic(epicId)
 
-        const responseText = `[OK] **Epic deleted successfully!**
-
-**Deleted Epic Details:**
-├─ ID: \`${epic.id}\`
-├─ Title: "${epic.title}"
-├─ Type: ${epic.type}
-├─ Status: ${epic.status}
-├─ Parent Idea: ${epic.ideaId}
-└─ Tasks Deleted: ${deletedTasksCount}
-
-**⚠️ IMPORTANT:**
-- Epic and ALL its tasks have been permanently removed
-- ${deletedTasksCount} tasks were deleted
-- All progress notes and history have been deleted
-- Epic removed from parent idea: ${epic.ideaId}
-- This operation cannot be undone`
-
-        const nextSteps = `
-
-**🎯 NEXT STEPS:**
-
-**IMMEDIATE ACTIONS:**
-1. **Review idea**: \`pm get idea ${epic.ideaId}\` - Check remaining epics in idea
-2. **Continue work**: \`pm next\` - Get next available task
-3. **Check dependencies**: Verify no other entities were depending on deleted items
-
-**WORKFLOW RECOMMENDATIONS:**
-- **View idea progress**: \`pm get idea ${epic.ideaId}\`
-- **List all epics**: \`pm list epics\`
-- **Get next task**: \`pm next\`
-- **Create replacement**: \`pm create epic "New Epic Title"\` (if needed)
-
-[TIP] **For AI agents**: Epic deletion removes all contained tasks. This affects the idea's structure and progress.`
-
         return {
             content: [
                 {
                     type: 'text',
-                    text: responseText + nextSteps,
+                    text: JSON.stringify(
+                        {
+                            result: {
+                                deleted: {
+                                    id: epic.id,
+                                    title: epic.title,
+                                    type: epic.type,
+                                    status: epic.status,
+                                    parentIdeaId: epic.ideaId,
+                                    deletedTasksCount: deletedTasksCount,
+                                },
+                            },
+                            status: 'success',
+                            guidance: {
+                                next_steps: this.getNextSteps(
+                                    'epic',
+                                    epic.ideaId,
+                                    { epics: 0, tasks: deletedTasksCount }
+                                ),
+                                context: `Epic "${epic.title}" and all its tasks (${deletedTasksCount} tasks) have been permanently deleted`,
+                                recommendations: this.getRecommendations(
+                                    'epic',
+                                    { epics: 0, tasks: deletedTasksCount }
+                                ),
+                                suggested_commands: [
+                                    `pm get_idea ${epic.ideaId}`,
+                                    `pm list epics`,
+                                    `pm next`,
+                                ],
+                            },
+                        },
+                        null,
+                        2
+                    ),
                 },
             ],
             metadata: {
@@ -268,15 +283,8 @@ export class DeleteEntityTool extends BaseTool {
                 entityId: epic.id,
                 operation: 'delete',
                 operationSuccess: true,
-                deletedEpicTitle: epic.title,
                 deletedTasksCount: deletedTasksCount,
                 parentIdeaId: epic.ideaId,
-                suggestedCommands: [
-                    `pm get idea ${epic.ideaId}`,
-                    `pm list epics`,
-                    `pm next`,
-                    `pm create epic "New Epic Title"`,
-                ],
             },
         }
     }
@@ -335,44 +343,46 @@ export class DeleteEntityTool extends BaseTool {
         // Delete task file
         await storage.deleteTask(taskId)
 
-        const responseText = `[OK] **Task deleted successfully!**
-
-**Deleted Task Details:**
-├─ ID: \`${taskDetails.id}\`
-├─ Title: "${taskDetails.title}"
-├─ Type: ${taskDetails.type}
-├─ Status: ${taskDetails.status}
-├─ Epic: ${taskDetails.epicTitle}
-└─ Progress Notes: ${taskDetails.progressNotesCount} notes removed
-
-**⚠️ IMPORTANT:**
-- Task has been permanently removed from the system
-- All progress notes and task history have been deleted
-- Task removed from parent epic: ${taskDetails.epicTitle}
-- This operation cannot be undone`
-
-        const nextSteps = `
-
-**🎯 NEXT STEPS:**
-
-**IMMEDIATE ACTIONS:**
-1. **Review epic**: \`pm get epic ${taskDetails.epicId}\` - Check remaining tasks in epic
-2. **Check dependencies**: Verify no other tasks were depending on this task
-3. **Continue work**: \`pm next\` - Get next available task
-
-**WORKFLOW RECOMMENDATIONS:**
-- **View epic progress**: \`pm get epic ${taskDetails.epicId}\`
-- **List all tasks**: \`pm list tasks\`
-- **Get next task**: \`pm next\`
-- **Create replacement**: \`pm create task "New Task Title"\` (if needed)
-
-[TIP] **For AI agents**: Task deletion is permanent. Always verify task ID before deletion and ensure no other tasks depend on it.`
-
         return {
             content: [
                 {
                     type: 'text',
-                    text: responseText + nextSteps,
+                    text: JSON.stringify(
+                        {
+                            result: {
+                                deleted: {
+                                    id: taskDetails.id,
+                                    title: taskDetails.title,
+                                    type: taskDetails.type,
+                                    status: taskDetails.status,
+                                    parentEpicId: taskDetails.epicId,
+                                    parentEpicTitle: taskDetails.epicTitle,
+                                    progressNotesDeleted:
+                                        taskDetails.progressNotesCount,
+                                },
+                            },
+                            status: 'success',
+                            guidance: {
+                                next_steps: this.getNextSteps(
+                                    'task',
+                                    taskDetails.epicId,
+                                    { epics: 0, tasks: 1 }
+                                ),
+                                context: `Task "${taskDetails.title}" with ${taskDetails.progressNotesCount} progress notes has been permanently deleted`,
+                                recommendations: this.getRecommendations(
+                                    'task',
+                                    { epics: 0, tasks: 1 }
+                                ),
+                                suggested_commands: [
+                                    `pm get_epic ${taskDetails.epicId}`,
+                                    `pm list tasks`,
+                                    `pm next`,
+                                ],
+                            },
+                        },
+                        null,
+                        2
+                    ),
                 },
             ],
             metadata: {
@@ -385,19 +395,65 @@ export class DeleteEntityTool extends BaseTool {
                 entityId: taskDetails.id,
                 operation: 'delete',
                 operationSuccess: true,
-                deletedTaskTitle: taskDetails.title,
-                deletedTaskType: taskDetails.type,
-                deletedTaskStatus: taskDetails.status,
                 parentEpicId: taskDetails.epicId,
-                parentEpicTitle: taskDetails.epicTitle,
                 progressNotesDeleted: taskDetails.progressNotesCount,
-                suggestedCommands: [
-                    `pm get epic ${taskDetails.epicId}`,
-                    `pm list tasks`,
-                    `pm next`,
-                    `pm create task "New Task Title"`,
-                ],
             },
         }
+    }
+
+    private getNextSteps(
+        entityType: string,
+        parentId: string,
+        _deletedCount: any
+    ): string[] {
+        const nextSteps = []
+
+        if (entityType === 'idea') {
+            nextSteps.push('Review remaining ideas in project')
+            nextSteps.push('Continue work on other ideas')
+            nextSteps.push('Consider creating replacement idea if needed')
+        } else if (entityType === 'epic') {
+            nextSteps.push(`Review remaining epics in idea ${parentId}`)
+            nextSteps.push('Continue work on other epics')
+            nextSteps.push('Consider creating replacement epic if needed')
+        } else if (entityType === 'task') {
+            nextSteps.push(`Review remaining tasks in epic ${parentId}`)
+            nextSteps.push('Continue work on other tasks')
+            nextSteps.push('Consider creating replacement task if needed')
+        }
+
+        nextSteps.push('Use "pm next" to get optimal next task')
+        nextSteps.push('Verify no dependencies were broken by deletion')
+
+        return nextSteps
+    }
+
+    private getRecommendations(
+        entityType: string,
+        deletedCount: any
+    ): string[] {
+        const recommendations = []
+
+        recommendations.push('⚠️ Deletion is permanent and cannot be undone')
+
+        if (entityType === 'idea') {
+            recommendations.push(
+                `Removed ${deletedCount.epics} epics and ${deletedCount.tasks} tasks`
+            )
+            recommendations.push('This affects overall project structure')
+        } else if (entityType === 'epic') {
+            recommendations.push(
+                `Removed ${deletedCount.tasks} tasks from the epic`
+            )
+            recommendations.push('This affects idea progress and structure')
+        } else if (entityType === 'task') {
+            recommendations.push('Task removed from parent epic')
+            recommendations.push('Check for any broken dependencies')
+        }
+
+        recommendations.push('Continue with remaining work items')
+        recommendations.push('Consider project structure after deletion')
+
+        return recommendations
     }
 }

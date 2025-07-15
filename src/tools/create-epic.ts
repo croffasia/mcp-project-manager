@@ -10,13 +10,7 @@ const createEpicSchema = z.object({
     priority: z.enum(['low', 'medium', 'high']).optional(),
 })
 
-/**
- * Tool for creating new epics within ideas to group related tasks together
- */
 export class CreateEpicTool extends BaseTool {
-    /**
-     * Creates a new instance of CreateEpicTool
-     */
     constructor() {
         super()
     }
@@ -30,13 +24,35 @@ export class CreateEpicTool extends BaseTool {
     }
 
     /**
-     * Returns the description of the tool
-     * @returns The tool description
+     * Returns the description of the tool with AI-guidance structure
+     * @returns The tool description with usage context
      */
     getDescription(): string {
-        return 'Create a new epic within a specific idea - epics group related tasks together'
+        return `Create a new epic within a specific idea - epics group related tasks together.
+        
+        WHEN TO USE:
+        - Breaking down large ideas into manageable phases
+        - Organizing related tasks under common themes
+        - Creating development phases within an idea
+        - Structuring work into logical components
+        
+        PARAMETERS:
+        - ideaId: ID of the parent idea (format: IDEA-N)
+        - title: Descriptive name for the epic
+        - description: Detailed explanation of epic scope
+        - priority: Optional priority level (low, medium, high)
+        
+        USAGE CONTEXT:
+        - Use after creating an idea
+        - Epics should contain 3-8 related tasks
+        - Should represent significant work phases
+        
+        EXPECTED OUTCOMES:
+        - New epic created within specified idea
+        - Ready for task creation and assignment
+        - Integrated into project hierarchy
+        - Clear next steps for task breakdown`
     }
-
     /**
      * Returns the input schema for the tool
      * @returns The JSON schema for tool input
@@ -98,45 +114,77 @@ export class CreateEpicTool extends BaseTool {
         idea.epics.push(epic)
         await storage.saveIdea(idea)
 
-        const responseText = `[OK] **Epic created successfully!**
-
-[DOCS] **${epic.title}**
-├─ ID: \`${epic.id}\`
-├─ Status: [WAIT] ${epic.status}
-├─ Created: ${epic.createdAt.toLocaleDateString()}
-└─ Description: ${epic.description}`
-        const nextSteps = `
-
-[START] **Recommended next steps:**
-1. **Add tasks to this epic**: \`pm create task "${epic.title} - Setup"\`
-2. **Create more tasks**: \`pm create task "${epic.title} - Implementation"\`
-3. **View epic progress**: \`pm list epics\`
-4. **Get next task**: \`pm next\`
-
-[TIP] **Pro tip**: Break epics into 3-8 specific, actionable tasks for better tracking!`
-
         return {
             content: [
                 {
                     type: 'text',
-                    text: responseText + nextSteps,
+                    text: JSON.stringify(
+                        {
+                            result: {
+                                epic: {
+                                    id: epic.id,
+                                    title: epic.title,
+                                    description: epic.description,
+                                    status: epic.status,
+                                    priority: epic.priority,
+                                    ideaId: epic.ideaId,
+                                    createdAt: epic.createdAt.toISOString(),
+                                },
+                            },
+                            status: 'success',
+                            guidance: {
+                                next_steps: this.getNextSteps(epic),
+                                context: `Created epic "${epic.title}" within idea - ready for task creation`,
+                                recommendations: this.getRecommendations(epic),
+                                suggested_commands: [
+                                    `pm create task "${epic.title} - Setup"`,
+                                    `pm get_epic ${epic.id}`,
+                                    `pm list epics`,
+                                ],
+                            },
+                        },
+                        null,
+                        2
+                    ),
                 },
             ],
             metadata: {
                 entityType: 'epic',
                 entityId: epic.id,
-                entityStatus: epic.status,
-                entityPriority: epic.priority,
                 operation: 'create',
                 operationSuccess: true,
-                parentIdea: validatedArgs.ideaId,
-                suggestedCommands: [
-                    `pm create task "${epic.title} - Setup"`,
-                    `pm create task "${epic.title} - Implementation"`,
-                    `pm list epics`,
-                    `pm next`,
-                ],
+                parentIdeaId: validatedArgs.ideaId,
             },
         }
+    }
+
+    private getNextSteps(epic: any): string[] {
+        return [
+            'Create 3-8 specific tasks for this epic',
+            'Define clear deliverables for each task',
+            'Consider task dependencies and sequencing',
+            'Set appropriate priorities for tasks',
+        ]
+    }
+
+    private getRecommendations(epic: any): string[] {
+        const recommendations = []
+
+        if (epic.priority === 'high') {
+            recommendations.push(
+                'High priority epic - create tasks immediately'
+            )
+        }
+
+        if (epic.description.length < 100) {
+            recommendations.push(
+                'Consider adding more detailed epic description'
+            )
+        }
+
+        recommendations.push('Break into 3-8 actionable tasks')
+        recommendations.push('Define clear acceptance criteria for each task')
+
+        return recommendations
     }
 }

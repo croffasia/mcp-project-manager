@@ -12,13 +12,7 @@ const createTaskSchema = z.object({
     dependencies: z.array(z.string()).optional(),
 })
 
-/**
- * Tool for creating individual work items (tasks) within epics that can be assigned and tracked
- */
 export class CreateTaskTool extends BaseTool {
-    /**
-     * Creates a new instance of CreateTaskTool
-     */
     constructor() {
         super()
     }
@@ -32,13 +26,38 @@ export class CreateTaskTool extends BaseTool {
     }
 
     /**
-     * Returns the description of the tool
-     * @returns The tool description
+     * Returns the description of the tool with AI-guidance structure
+     * @returns The tool description with usage context
      */
     getDescription(): string {
-        return 'Create a new task within a specific epic - tasks are individual work items that can be assigned and tracked'
+        return `Create a new task within a specific epic - tasks are individual work items that can be assigned and tracked.
+        
+        WHEN TO USE:
+        - Breaking down epics into actionable work items
+        - Creating specific development tasks
+        - Adding bug fixes or research tasks
+        - Defining work that can be completed in 1-3 days
+        
+        PARAMETERS:
+        - epicId: ID of the parent epic (format: EPIC-N)
+        - title: Clear, actionable task name
+        - description: Detailed requirements and acceptance criteria
+        - type: Task type (task, bug, rnd)
+        - priority: Priority level (low, medium, high)
+        - dependencies: Optional array of task IDs this depends on
+        
+        USAGE CONTEXT:
+        - Use after creating epics
+        - Tasks should be specific and actionable
+        - Consider dependencies between tasks
+        - Include clear success criteria
+        
+        EXPECTED OUTCOMES:
+        - New task created within specified epic
+        - Ready for assignment and execution
+        - Integrated into dependency tracking
+        - Clear next steps for development work`
     }
-
     /**
      * Returns the input schema for the tool
      * @returns The JSON schema for tool input
@@ -127,45 +146,51 @@ export class CreateTaskTool extends BaseTool {
         epic.tasks.push(task)
         await storage.saveEpic(epic)
 
-        const responseText = `[OK] **Task created successfully!**
-
-[LIST] **${task.title}**
-├─ ID: \`${task.id}\`
-├─ Status: [WAIT] ${task.status}
-├─ Created: ${task.createdAt.toLocaleDateString()}
-└─ Description: ${task.description}
-
-`
-        const nextSteps = `
-
-**🎯 AI WORKFLOW RECOMMENDATIONS:**
-
-**IMMEDIATE ACTIONS:**
-1. **Start working**: \`pm update task ${task.id} status in-progress progressNote "Beginning task analysis and planning" progressType update\`
-2. **Analyze requirements**: Review task description for requirements and acceptance criteria
-3. **Plan implementation**: Break down the task into specific steps
-
-**DURING DEVELOPMENT:**
-- **Track progress**: \`pm update task ${task.id} progressNote "Completed [milestone]" progressType update\`
-- **Report blockers**: \`pm update task ${task.id} progressNote "Blocked by: [reason]" progressType blocker\`
-- **Document decisions**: \`pm update task ${task.id} progressNote "Decision made: [context]" progressType comment\`
-
-**COMPLETION:**
-- **Verify requirements**: Ensure all requirements from task description are met
-- **Mark done**: \`pm update task ${task.id} status done progressNote "Task completed successfully" progressType completion\`
-
-**Other Actions:**
-- **Create related tasks**: \`pm create task "Follow-up Task"\`
-- **View all tasks**: \`pm list tasks\`
-- **Get next task**: \`pm next\`
-
-[TIP] **For AI agents**: Use progress notes throughout development to maintain visibility. Each progress note should include meaningful context about what was accomplished or what blockers were encountered.`
+        const canStart = !task.dependencies || task.dependencies.length === 0
 
         return {
             content: [
                 {
                     type: 'text',
-                    text: responseText + nextSteps,
+                    text: JSON.stringify(
+                        {
+                            result: {
+                                task: {
+                                    id: task.id,
+                                    title: task.title,
+                                    description: task.description,
+                                    type: task.type,
+                                    status: task.status,
+                                    priority: task.priority,
+                                    epicId: task.epicId,
+                                    dependencies: task.dependencies,
+                                    createdAt: task.createdAt.toISOString(),
+                                },
+                                readiness: {
+                                    canStart,
+                                    dependenciesCount:
+                                        task.dependencies?.length || 0,
+                                },
+                            },
+                            status: 'success',
+                            guidance: {
+                                next_steps: this.getNextSteps(task, canStart),
+                                context: `Created task "${task.title}" - ${canStart ? 'ready to start' : 'waiting for dependencies'}`,
+                                recommendations: this.getRecommendations(
+                                    task,
+                                    canStart
+                                ),
+                                workflow_steps: this.getWorkflowSteps(task),
+                                suggested_commands: [
+                                    `pm get_task ${task.id}`,
+                                    `pm update task ${task.id} status in-progress`,
+                                    `pm next`,
+                                ],
+                            },
+                        },
+                        null,
+                        2
+                    ),
                 },
             ],
             metadata: {
@@ -176,17 +201,67 @@ export class CreateTaskTool extends BaseTool {
                           ? 'research'
                           : 'task',
                 entityId: task.id,
-                entityStatus: task.status,
-                entityPriority: task.priority,
                 operation: 'create',
                 operationSuccess: true,
-                suggestedCommands: [
-                    `pm update task ${task.id} status in-progress`,
-                    `pm update task ${task.id} progress "Started implementation"`,
-                    `pm list tasks`,
-                    `pm next`,
-                ],
+                canStart,
+                hasDependencies:
+                    task.dependencies && task.dependencies.length > 0,
             },
         }
+    }
+
+    private getNextSteps(task: any, canStart: boolean): string[] {
+        const steps = []
+
+        if (canStart) {
+            steps.push('Start working on this task')
+            steps.push('Add progress notes as you work')
+        } else {
+            steps.push('Wait for dependencies to complete')
+            steps.push('Monitor dependency progress')
+        }
+
+        steps.push('Review task requirements and acceptance criteria')
+        steps.push('Use "pm next" to get optimal next task')
+
+        return steps
+    }
+
+    private getRecommendations(task: any, canStart: boolean): string[] {
+        const recommendations = []
+
+        if (task.priority === 'high') {
+            recommendations.push('High priority task - prioritize accordingly')
+        }
+
+        if (!canStart) {
+            recommendations.push(
+                'Cannot start until dependencies are completed'
+            )
+        }
+
+        if (task.description.length < 100) {
+            recommendations.push(
+                'Consider adding more detailed description with acceptance criteria'
+            )
+        }
+
+        if (task.type === 'bug') {
+            recommendations.push(
+                'Include steps to reproduce and expected behavior'
+            )
+        }
+
+        return recommendations
+    }
+
+    private getWorkflowSteps(task: any): string[] {
+        return [
+            'Analyze requirements and acceptance criteria',
+            'Plan implementation approach',
+            'Track progress with regular updates',
+            'Test and validate completion',
+            'Mark as done when all criteria met',
+        ]
     }
 }

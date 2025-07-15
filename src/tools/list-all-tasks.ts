@@ -5,18 +5,47 @@ export class ListAllTasksTool extends BaseTool {
         super()
     }
 
+    /**
+     * Returns the name of the tool
+     * @returns The tool name
+     */
     getName(): string {
         return 'list_all_tasks'
     }
 
     /**
-     * Returns the description of the tool
-     * @returns The tool description
+     * Returns the description of the tool with AI-guidance structure
+     * @returns The tool description with usage context
      */
     getDescription(): string {
-        return 'List all tasks in the project with epic context, dependencies, progress status, and priority breakdown'
+        return `List all tasks in the project with epic context, dependencies, progress status, and priority breakdown.
+        
+        WHEN TO USE:
+        - Need comprehensive view of all tasks across the project
+        - Planning work prioritization and resource allocation
+        - Tracking detailed progress at the task level
+        - Identifying blocked or problematic tasks
+        
+        PARAMETERS:
+        - No parameters required - returns all tasks
+        
+        USAGE CONTEXT:
+        - Essential for developers and AI agents managing task execution
+        - Provides detailed view of task dependencies and blocking relationships
+        - Critical for daily stand-ups and sprint planning
+        - Used for identifying bottlenecks and progress tracking
+        
+        EXPECTED OUTCOMES:
+        - Complete list of all tasks with comprehensive context
+        - Dependency analysis and blocking status
+        - Progress tracking with status distribution
+        - Actionable insights for task management and workflow optimization`
     }
 
+    /**
+     * Returns the input schema for the tool
+     * @returns The JSON schema for tool input
+     */
     getInputSchema(): object {
         return {
             type: 'object',
@@ -24,7 +53,12 @@ export class ListAllTasksTool extends BaseTool {
         }
     }
 
-    async execute(): Promise<ToolResult> {
+    /**
+     * Executes the task listing with comprehensive statistics
+     * @param _args - The tool arguments (empty for this tool)
+     * @returns The listing result with task details and statistics
+     */
+    async execute(_args?: any): Promise<ToolResult> {
         const storage = await this.getStorage()
 
         // Load all tasks
@@ -35,16 +69,47 @@ export class ListAllTasksTool extends BaseTool {
                 content: [
                     {
                         type: 'text',
-                        text: `[NOTE] **All Tasks Overview**
-
-[ERROR] **No tasks found**
-
-[NOTE] **Get started:**
-- **Create your first task**: \`pm create task "My First Task"\`
-- **View epics**: \`pm list epics\`
-- **Initialize project**: \`pm init\` (if not done)
-
-[TIP] **Pro tip**: Tasks are specific work items that belong to epics within ideas!`,
+                        text: JSON.stringify(
+                            {
+                                result: {
+                                    tasks: [],
+                                    summary: {
+                                        totalCount: 0,
+                                        completedCount: 0,
+                                        inProgressCount: 0,
+                                        blockedCount: 0,
+                                        pendingCount: 0,
+                                        progressPercent: 0,
+                                    },
+                                    distributions: {
+                                        status: {},
+                                        priority: {},
+                                        type: {},
+                                    },
+                                },
+                                status: 'warning',
+                                guidance: {
+                                    next_steps: [
+                                        'Create your first task to start working',
+                                        'View existing epics to understand project structure',
+                                        'Initialize project if not done yet',
+                                    ],
+                                    context: 'No tasks found in the project',
+                                    recommendations: [
+                                        'Tasks are specific work items that belong to epics within ideas',
+                                        'Create tasks with clear Definition of Done criteria',
+                                        'Use hierarchical structure: Ideas → Epics → Tasks',
+                                    ],
+                                    suggested_commands: [
+                                        'pm create_task "My First Task"',
+                                        'pm list_all_epics',
+                                        'pm init_project',
+                                    ],
+                                },
+                            },
+                            null,
+                            2
+                        ),
                     },
                 ],
                 metadata: {
@@ -59,11 +124,6 @@ export class ListAllTasksTool extends BaseTool {
                     statusBreakdown: {},
                     priorityBreakdown: {},
                     typeBreakdown: {},
-                    suggestedCommands: [
-                        'pm create task "My First Task"',
-                        'pm list epics',
-                        'pm init',
-                    ],
                 },
             }
         }
@@ -157,101 +217,78 @@ export class ListAllTasksTool extends BaseTool {
         const pendingTasks = allTasks.filter((t) => t.status === 'pending')
         const completedTasks = allTasks.filter((t) => t.status === 'done')
 
-        const responseText = `[NOTE] **All Tasks Overview** (${allTasks.length} total)
-
-**Summary Statistics:**
-- **Completed**: ${completedTasks.length} (${Math.round((completedTasks.length / allTasks.length) * 100)}%)
-- **In Progress**: ${inProgressTasks.length}
-- **Pending**: ${pendingTasks.length}
-- **Blocked**: ${blockedTasks.length}
-
-**Status Distribution:**
-${Object.entries(statusCounts)
-    .sort((a, b) => b[1] - a[1])
-    .map(([status, count]) => `- **${status}**: ${count}`)
-    .join('\n')}
-
-**Priority Distribution:**
-${Object.entries(priorityCounts)
-    .sort((a, b) => b[1] - a[1])
-    .map(([priority, count]) => `- **${priority}**: ${count}`)
-    .join('\n')}
-
-**Type Distribution:**
-${Object.entries(typeCounts)
-    .sort((a, b) => b[1] - a[1])
-    .map(([type, count]) => `- **${type}**: ${count}`)
-    .join('\n')}
-
-**Task Details:**
-${tasksWithContext
-    .map((task) => {
-        let result = `${this.getStatusIcon(task.status)} **${task.title}** (${task.id})
-  - **Idea**: ${task.ideaTitle}
-  - **Epic**: ${task.epicTitle}
-  - **Status**: ${task.status} | **Priority**: ${task.priority} | **Type**: ${task.type}
-  - **Created**: ${task.daysSinceCreated} days ago | **Updated**: ${task.daysSinceUpdated} days ago`
-
-        if (task.hasDependencies) {
-            if (task.dependencyInfo.hasBlocked) {
-                result += `\n  - ⚠️ **BLOCKED: ${task.dependencyInfo.blockedCount}/${task.dependencyInfo.totalDeps} dependencies incomplete**`
-            } else {
-                result += `\n  - ✅ **All ${task.dependencyInfo.totalDeps} dependencies completed**`
-            }
-        }
-
-        if (task.hasProgressNotes) {
-            result += `\n  - [NOTE] **Has progress notes**`
-        }
-
-        return result
-    })
-    .join('\n\n')}
-
-**🎯 AI WORKFLOW RECOMMENDATIONS:**
-
-**For Tasks in Progress (${inProgressTasks.length} tasks):**
-${
-    inProgressTasks.length > 0
-        ? `- **Add progress notes**: \`pm update task [TASK-ID] progressNote "Current progress update" progressType update\`
-- **Report blockers**: \`pm update task [TASK-ID] progressNote "Blocked by: [reason]" progressType blocker\`
-- **Mark completed**: \`pm update task [TASK-ID] status done progressNote "Task completed - all DoD items checked" progressType completion\``
-        : '- No tasks currently in progress'
-}
-
-**For Pending Tasks (${pendingTasks.length} tasks):**
-${
-    pendingTasks.length > 0
-        ? `- **Start next task**: \`pm next\` (gets optimal task to work on)
-- **Begin work**: \`pm update task [TASK-ID] status in-progress progressNote "Starting task implementation" progressType update\`
-- **Track progress**: Use progress notes throughout development`
-        : '- No pending tasks - consider creating new tasks'
-}
-
-**For Blocked Tasks (${blockedTasks.length} tasks):**
-${
-    blockedTasks.length > 0
-        ? `- **Identify blockers**: \`pm get_task [TASK-ID]\` to see blocking issues
-- **Resolve blockers**: Focus on unblocking dependencies
-- **Update status**: \`pm update task [TASK-ID] status pending\` when unblocked`
-        : '- No blocked tasks - good project health!'
-}
-
-**Quick Actions:**
-- **Create new task**: \`pm create task "Task Title"\`
-- **View specific task**: \`pm get_task TSK-ID\`
-- **Get next task**: \`pm next\`
-- **View blocked tasks**: \`pm list tasks --status blocked\`
-- **View epics**: \`pm list epics\`
-- **View ideas**: \`pm list ideas\`
-
-[TIP] **For AI agents**: Always update task status and add progress notes when working on tasks. Each task includes Definition of Done checklist items to guide completion. Use progress notes to maintain visibility into development progress!`
-
         return {
             content: [
                 {
                     type: 'text',
-                    text: responseText,
+                    text: JSON.stringify(
+                        {
+                            result: {
+                                tasks: tasksWithContext.map((task) => ({
+                                    id: task.id,
+                                    title: task.title,
+                                    description: task.description,
+                                    status: task.status,
+                                    priority: task.priority,
+                                    type: task.type,
+                                    createdAt: task.createdAt.toISOString(),
+                                    updatedAt: task.updatedAt.toISOString(),
+                                    daysSinceCreated: task.daysSinceCreated,
+                                    daysSinceUpdated: task.daysSinceUpdated,
+                                    parentEpicTitle: task.epicTitle,
+                                    parentIdeaTitle: task.ideaTitle,
+                                    hasDependencies: task.hasDependencies,
+                                    hasProgressNotes: task.hasProgressNotes,
+                                    dependencyInfo: task.dependencyInfo,
+                                })),
+                                summary: {
+                                    totalCount: allTasks.length,
+                                    completedCount: completedTasks.length,
+                                    inProgressCount: inProgressTasks.length,
+                                    blockedCount: blockedTasks.length,
+                                    pendingCount: pendingTasks.length,
+                                    progressPercent: Math.round(
+                                        (completedTasks.length /
+                                            allTasks.length) *
+                                            100
+                                    ),
+                                },
+                                distributions: {
+                                    status: statusCounts,
+                                    priority: priorityCounts,
+                                    type: typeCounts,
+                                },
+                            },
+                            status: 'success',
+                            guidance: {
+                                next_steps: this.getNextSteps(
+                                    inProgressTasks,
+                                    pendingTasks,
+                                    blockedTasks
+                                ),
+                                context: `Found ${allTasks.length} tasks with ${completedTasks.length} completed (${Math.round((completedTasks.length / allTasks.length) * 100)}%)`,
+                                recommendations: this.getRecommendations(
+                                    inProgressTasks,
+                                    pendingTasks,
+                                    blockedTasks
+                                ),
+                                workflow_recommendations:
+                                    this.getWorkflowRecommendations(
+                                        inProgressTasks,
+                                        pendingTasks,
+                                        blockedTasks
+                                    ),
+                                suggested_commands: [
+                                    'pm create_task "Task Title"',
+                                    'pm get_task [TSK-ID]',
+                                    'pm next_task',
+                                    'pm list_all_epics',
+                                ],
+                            },
+                        },
+                        null,
+                        2
+                    ),
                 },
             ],
             metadata: {
@@ -269,28 +306,111 @@ ${
                 progressPercent: Math.round(
                     (completedTasks.length / allTasks.length) * 100
                 ),
-                suggestedCommands: [
-                    'pm create task "Task Title"',
-                    'pm get_task TSK-ID',
-                    'pm next',
-                    'pm list epics',
-                ],
             },
         }
     }
 
-    private getStatusIcon(status: string): string {
-        switch (status) {
-            case 'done':
-                return '[OK]'
-            case 'in-progress':
-                return '[WAIT]'
-            case 'blocked':
-                return '[BLOCK]'
-            case 'deferred':
-                return '[DATE]'
-            default:
-                return '⏸️'
+    private getNextSteps(
+        inProgressTasks: any[],
+        pendingTasks: any[],
+        blockedTasks: any[]
+    ): string[] {
+        const nextSteps = []
+
+        if (inProgressTasks.length > 0) {
+            nextSteps.push(
+                `Continue work on ${inProgressTasks.length} in-progress tasks`
+            )
+        }
+
+        if (pendingTasks.length > 0) {
+            nextSteps.push(`Start work on ${pendingTasks.length} pending tasks`)
+        }
+
+        if (blockedTasks.length > 0) {
+            nextSteps.push(`Unblock ${blockedTasks.length} blocked tasks`)
+        }
+
+        nextSteps.push('Use next_task to get optimal work recommendations')
+        nextSteps.push('Update task status and add progress notes regularly')
+
+        return nextSteps
+    }
+
+    private getRecommendations(
+        inProgressTasks: any[],
+        pendingTasks: any[],
+        blockedTasks: any[]
+    ): string[] {
+        const recommendations = []
+
+        if (inProgressTasks.length > 0) {
+            recommendations.push(
+                'Add progress notes to in-progress tasks for visibility'
+            )
+        }
+
+        if (blockedTasks.length > 0) {
+            recommendations.push(
+                'Focus on unblocking dependencies to improve workflow'
+            )
+        }
+
+        if (pendingTasks.length > 0) {
+            recommendations.push(
+                'Prioritize pending tasks based on dependencies and urgency'
+            )
+        }
+
+        recommendations.push(
+            'Track progress regularly with task status updates'
+        )
+        recommendations.push(
+            'Use Definition of Done criteria to guide completion'
+        )
+
+        return recommendations
+    }
+
+    private getWorkflowRecommendations(
+        inProgressTasks: any[],
+        pendingTasks: any[],
+        blockedTasks: any[]
+    ): any {
+        return {
+            inProgress: {
+                count: inProgressTasks.length,
+                actions:
+                    inProgressTasks.length > 0
+                        ? [
+                              'Add progress notes with current status',
+                              'Report blockers immediately when encountered',
+                              'Mark as done when all DoD items are complete',
+                          ]
+                        : ['No tasks currently in progress'],
+            },
+            pending: {
+                count: pendingTasks.length,
+                actions:
+                    pendingTasks.length > 0
+                        ? [
+                              'Use next_task to get optimal task recommendation',
+                              'Update status to in-progress when starting work',
+                              'Track progress with regular updates',
+                          ]
+                        : ['No pending tasks - consider creating new tasks'],
+            },
+            blocked: {
+                count: blockedTasks.length,
+                actions:
+                    blockedTasks.length > 0
+                        ? [
+                              'Identify and resolve blocking issues',
+                              'Focus on unblocking dependencies',
+                              'Update status to pending when unblocked',
+                          ]
+                        : ['No blocked tasks - good project health!'],
+            },
         }
     }
 

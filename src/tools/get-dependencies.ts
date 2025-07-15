@@ -26,11 +26,32 @@ export class GetDependenciesTool extends BaseTool {
     }
 
     /**
-     * Returns the description of the tool
-     * @returns The tool description
+     * Returns the description of the tool with AI-guidance structure
+     * @returns The tool description with usage context
      */
     getDescription(): string {
-        return 'Retrieve and analyze all dependencies for a task showing status, blocking relationships, and dependency chain analysis'
+        return `Retrieve and analyze all dependencies for a task showing status, blocking relationships, and dependency chain analysis.
+        
+        WHEN TO USE:
+        - Before starting work on a task to understand prerequisites
+        - When task appears blocked to identify what needs completion
+        - Planning task execution order and dependency resolution
+        - Analyzing project bottlenecks and blocked workflows
+        
+        PARAMETERS:
+        - taskId: String identifier of the task (format: TSK-N, BUG-N, RND-N)
+        
+        USAGE CONTEXT:
+        - Essential for understanding task readiness
+        - Helps identify dependency chains and blocking relationships
+        - Critical for workflow planning and task prioritization
+        - Used by task management systems for execution planning
+        
+        EXPECTED OUTCOMES:
+        - Complete dependency analysis with blocking status
+        - Readiness assessment for task execution
+        - Actionable insights for dependency resolution
+        - Clear next steps for unblocking workflow`
     }
 
     /**
@@ -80,52 +101,78 @@ export class GetDependenciesTool extends BaseTool {
             }
         }
 
-        let responseText = `[LINK] **Dependencies for Task: "${task.title}"**
+        const completedDeps = dependencies.filter((d) => d.status === 'done')
+        const blockedDeps = dependencies.filter((d) => d.status === 'blocked')
+        const inProgressDeps = dependencies.filter(
+            (d) => d.status === 'in-progress'
+        )
+        const pendingDeps = dependencies.filter((d) => d.status === 'pending')
 
-**Task Details:**
-- ID: ${task.id}
-- Epic: ${epicTitle}
-- Status: ${task.status}
-- Type: ${task.type}
-- Priority: ${task.priority}
-
-**Dependencies (${dependencies.length}):**`
-
-        if (dependencies.length === 0) {
-            responseText += `
-- No dependencies found
-
-[OK] **This task has no blocking dependencies and can be started immediately!**`
-        } else {
-            responseText += `
-${dependencies
-    .map(
-        (dep) => `- **${dep.title}** (${dep.id})
-  - Status: ${dep.status}
-  - Type: ${dep.type}
-  - Priority: ${dep.priority}`
-    )
-    .join('\n')}
-
-**Dependency Analysis:**
-${this.analyzeDependencies(dependencies)}`
-        }
-
-        responseText += `
-
-**Next Steps:**
-- **View task details**: \`pm get_task ${task.id}\`
-- **Update task status**: \`pm update task ${task.id} status in-progress\`
-- **Add progress notes**: \`pm update task ${task.id} progress "Working on dependencies"\`
-- **View all tasks**: \`pm list tasks\`
-
-[TIP] **Pro tip**: Resolve blocked dependencies first for smoother workflow!`
+        const canStart =
+            dependencies.length === 0 ||
+            dependencies.every((d) => d.status === 'done')
 
         return {
             content: [
                 {
                     type: 'text',
-                    text: responseText,
+                    text: JSON.stringify(
+                        {
+                            result: {
+                                task: {
+                                    id: task.id,
+                                    title: task.title,
+                                    status: task.status,
+                                    type: task.type,
+                                    priority: task.priority,
+                                    parentEpicTitle: epicTitle,
+                                },
+                                dependencies: dependencies.map((dep) => ({
+                                    id: dep.id,
+                                    title: dep.title,
+                                    status: dep.status,
+                                    type: dep.type,
+                                    priority: dep.priority,
+                                    isBlocking: dep.status !== 'done',
+                                })),
+                                analysis: {
+                                    totalDependencies: dependencies.length,
+                                    completedDependencies: completedDeps.length,
+                                    blockedDependencies: blockedDeps.length,
+                                    inProgressDependencies:
+                                        inProgressDeps.length,
+                                    pendingDependencies: pendingDeps.length,
+                                    canStart,
+                                    readinessStatus: canStart
+                                        ? 'ready'
+                                        : 'blocked',
+                                },
+                            },
+                            status: 'success',
+                            guidance: {
+                                next_steps: this.getNextSteps(
+                                    task,
+                                    dependencies,
+                                    canStart
+                                ),
+                                context: `Task "${task.title}" has ${dependencies.length} dependencies with ${completedDeps.length} completed`,
+                                recommendations: this.getRecommendations(
+                                    dependencies,
+                                    canStart
+                                ),
+                                readiness_assessment: canStart
+                                    ? 'Ready to start - no blocking dependencies'
+                                    : 'Blocked by dependencies',
+                                suggested_commands: [
+                                    `pm get_task ${task.id}`,
+                                    `pm update task ${task.id} status in-progress`,
+                                    `pm list tasks`,
+                                ],
+                            },
+                        },
+                        null,
+                        2
+                    ),
                 },
             ],
             metadata: {
@@ -134,70 +181,108 @@ ${this.analyzeDependencies(dependencies)}`
                 operation: 'get',
                 operationSuccess: true,
                 dependenciesCount: dependencies.length,
-                hasBlockingDependencies: dependencies.some(
-                    (d) => d.status !== 'done'
-                ),
-                completedDependencies: dependencies.filter(
-                    (d) => d.status === 'done'
-                ).length,
-                blockedDependencies: dependencies.filter(
-                    (d) => d.status === 'blocked'
-                ).length,
-                suggestedCommands: [
-                    `pm get_task ${task.id}`,
-                    `pm update task ${task.id} status in-progress`,
-                    `pm list tasks`,
-                ],
+                canStart,
+                hasBlockingDependencies: !canStart,
+                completedDependencies: completedDeps.length,
+                blockedDependencies: blockedDeps.length,
             },
         }
     }
 
-    /**
-     * Analyzes the dependencies to provide status insights and blocking information
-     * @param dependencies - Array of dependency objects
-     * @returns Formatted analysis string with dependency status insights
-     */
-    private analyzeDependencies(dependencies: any[]): string {
-        const analysis = []
+    private getNextSteps(
+        _task: any,
+        dependencies: any[],
+        canStart: boolean
+    ): string[] {
+        const nextSteps = []
 
-        const completedDeps = dependencies.filter((d) => d.status === 'done')
-        const blockedDeps = dependencies.filter((d) => d.status === 'blocked')
-        const inProgressDeps = dependencies.filter(
-            (d) => d.status === 'in-progress'
-        )
-        const pendingDeps = dependencies.filter((d) => d.status === 'pending')
+        if (dependencies.length === 0) {
+            nextSteps.push('No dependencies - task is ready to start')
+            nextSteps.push('Begin work on this task immediately')
+        } else {
+            if (!canStart) {
+                const blockedDeps = dependencies.filter(
+                    (d) => d.status === 'blocked'
+                )
+                const pendingDeps = dependencies.filter(
+                    (d) => d.status === 'pending'
+                )
+                const inProgressDeps = dependencies.filter(
+                    (d) => d.status === 'in-progress'
+                )
 
-        if (completedDeps.length === dependencies.length) {
-            analysis.push(
-                '[OK] All dependencies are completed - ready to start!'
+                if (blockedDeps.length > 0) {
+                    nextSteps.push(
+                        `Unblock ${blockedDeps.length} blocked dependencies`
+                    )
+                }
+                if (pendingDeps.length > 0) {
+                    nextSteps.push(
+                        `Start work on ${pendingDeps.length} pending dependencies`
+                    )
+                }
+                if (inProgressDeps.length > 0) {
+                    nextSteps.push(
+                        `Wait for ${inProgressDeps.length} in-progress dependencies`
+                    )
+                }
+            } else {
+                nextSteps.push('All dependencies completed - ready to start')
+                nextSteps.push('Begin work on this task')
+            }
+        }
+
+        nextSteps.push('Monitor dependency progress regularly')
+        nextSteps.push('Use "pm next" for optimal task selection')
+
+        return nextSteps
+    }
+
+    private getRecommendations(
+        dependencies: any[],
+        canStart: boolean
+    ): string[] {
+        const recommendations = []
+
+        if (dependencies.length === 0) {
+            recommendations.push(
+                'No dependencies - this task can be started immediately'
             )
         } else {
-            if (blockedDeps.length > 0) {
-                analysis.push(
-                    `[BLOCK] ${blockedDeps.length} dependencies are blocked`
+            if (canStart) {
+                recommendations.push(
+                    'All dependencies are resolved - proceed with task'
                 )
-            }
-            if (inProgressDeps.length > 0) {
-                analysis.push(
-                    `[WAIT] ${inProgressDeps.length} dependencies are in progress`
+            } else {
+                recommendations.push(
+                    'Focus on completing blocking dependencies first'
                 )
-            }
-            if (pendingDeps.length > 0) {
-                analysis.push(
-                    `⏸️ ${pendingDeps.length} dependencies are pending`
+
+                const highPriorityDeps = dependencies.filter(
+                    (d) => d.priority === 'high' && d.status !== 'done'
                 )
+                if (highPriorityDeps.length > 0) {
+                    recommendations.push(
+                        `${highPriorityDeps.length} high-priority dependencies need attention`
+                    )
+                }
+
+                const blockedDeps = dependencies.filter(
+                    (d) => d.status === 'blocked'
+                )
+                if (blockedDeps.length > 0) {
+                    recommendations.push(
+                        'Resolve blocked dependencies to unblock workflow'
+                    )
+                }
             }
         }
 
-        const highPriorityDeps = dependencies.filter(
-            (d) => d.priority === 'high'
+        recommendations.push(
+            'Review dependency chain for optimization opportunities'
         )
-        if (highPriorityDeps.length > 0) {
-            analysis.push(
-                `[FAST] ${highPriorityDeps.length} high-priority dependencies`
-            )
-        }
+        recommendations.push('Consider task parallelization where possible')
 
-        return analysis.join('\n')
+        return recommendations
     }
 }

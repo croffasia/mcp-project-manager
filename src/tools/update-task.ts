@@ -37,13 +37,46 @@ export class UpdateTaskTool extends BaseTool {
     }
 
     /**
-     * Returns the description of the tool
-     * @returns The tool description
+     * Returns the description of the tool with AI-guidance structure
+     * @returns The tool description with usage context
      */
     getDescription(): string {
-        return 'Update task properties (status, progress, priority, title, description) with automatic change tracking and progress notes'
+        return `Update task properties (status, progress, priority, title, description) with automatic change tracking and progress notes.
+        
+        WHEN TO USE:
+        - Starting work on a task (status → in-progress)
+        - Adding progress notes during development
+        - Updating task priority or requirements
+        - Marking tasks as done or blocked
+        - Modifying task dependencies
+        
+        PARAMETERS:
+        - taskId: Required ID of the task to update
+        - status: Change task status (pending, in-progress, done, blocked, deferred)
+        - progressNote: Add progress note with timestamp
+        - progressType: Type of progress note (update, comment, blocker, completion)
+        - priority: Update task priority (low, medium, high)
+        - title: Update task title
+        - description: Update task description
+        - dependencies: Update task dependencies array
+        
+        USAGE CONTEXT:
+        - Critical for AI agents to track development progress
+        - Essential for maintaining task state and visibility
+        - Used for workflow management and progress reporting
+        - Supports detailed change logging and audit trail
+        
+        EXPECTED OUTCOMES:
+        - Task properties updated with change tracking
+        - Progress notes logged with timestamps
+        - Automatic metadata updates and validation
+        - Clear feedback on changes made and next steps`
     }
 
+    /**
+     * Returns the input schema for the tool
+     * @returns The JSON schema for tool input
+     */
     getInputSchema(): object {
         return {
             type: 'object',
@@ -96,6 +129,11 @@ export class UpdateTaskTool extends BaseTool {
         }
     }
 
+    /**
+     * Executes the task update process with change tracking
+     * @param args - The tool arguments containing taskId and optional update fields
+     * @returns The update result with change summary and next steps
+     */
     async execute(args: any): Promise<ToolResult> {
         // Check approval requirement first, except for status change to 'in-progress'
         const isStartingWork = args.status === 'in-progress'
@@ -215,7 +253,43 @@ export class UpdateTaskTool extends BaseTool {
                 content: [
                     {
                         type: 'text',
-                        text: `[WARN] **No changes made to task: "${task.title}"**\n\n- **ID**: ${task.id}\n- **Current Status**: ${task.status}\n- **Current Priority**: ${task.priority}\n\n**Next Steps:**\n- **View details**: \`pm get_task ${task.id}\`\n- **Add progress**: \`pm update_task ${task.id} progressNote "Progress update"\`\n- **Change status**: \`pm update_task ${task.id} status in-progress\``,
+                        text: JSON.stringify(
+                            {
+                                result: {
+                                    task: {
+                                        id: task.id,
+                                        title: task.title,
+                                        status: task.status,
+                                        priority: task.priority,
+                                        parentEpicTitle: epicTitle,
+                                        parentIdeaTitle: ideaTitle,
+                                    },
+                                    changes: [],
+                                    reason: 'no_changes',
+                                },
+                                status: 'warning',
+                                guidance: {
+                                    next_steps: [
+                                        'Specify different values to make changes',
+                                        'Add progress notes to track work',
+                                        'Update status to reflect current state',
+                                    ],
+                                    context: `No changes made to task "${task.title}"`,
+                                    recommendations: [
+                                        'Use get_task to view current task details',
+                                        'Add progress notes regularly for visibility',
+                                        'Update status when starting or completing work',
+                                    ],
+                                    suggested_commands: [
+                                        `pm get_task ${task.id}`,
+                                        `pm update_task ${task.id} progressNote "Progress update"`,
+                                        `pm update_task ${task.id} status in-progress`,
+                                    ],
+                                },
+                            },
+                            null,
+                            2
+                        ),
                     },
                 ],
                 metadata: {
@@ -227,25 +301,70 @@ export class UpdateTaskTool extends BaseTool {
                     currentStatus: task.status,
                     currentPriority: task.priority,
                     updatedFields: [],
-                    suggestedCommands: [
-                        `pm get_task ${task.id}`,
-                        `pm update_task ${task.id} progressNote "Progress update"`,
-                        `pm update_task ${task.id} status in-progress`,
-                    ],
                 },
             }
         }
-
-        const statusIcon = this.getStatusIcon(task.status)
-        const progressIcon = this.getProgressIcon(task.status, oldStatus)
-
-        const responseText = `${statusIcon} **Task Updated: "${task.title}"**\n\n**Task Context:**\n- **ID**: ${task.id}\n- **Idea**: ${ideaTitle}\n- **Epic**: ${epicTitle}\n\n**Changes Made:**\n${changes.map((change) => `- ${change}`).join('\n')}\n\n**Current Status:**\n- **Status**: ${task.status}\n- **Priority**: ${task.priority}\n- **Updated**: ${task.updatedAt.toLocaleDateString()}\n\n${progressIcon} **Progress Summary:**\n${this.getProgressSummary(task)}\n\n**Next Steps:**\n- **View full details**: \`pm get_task ${task.id}\`\n- **Add more progress**: \`pm update_task ${task.id} progressNote "Additional update"\`\n- **Get next task**: \`pm next\`\n- **View epic progress**: \`pm get_epic ${task.epicId}\`\n\n[TIP] **Pro tip**: Regular updates help track progress and identify blockers early!`
 
         return {
             content: [
                 {
                     type: 'text',
-                    text: responseText,
+                    text: JSON.stringify(
+                        {
+                            result: {
+                                task: {
+                                    id: task.id,
+                                    title: task.title,
+                                    status: task.status,
+                                    priority: task.priority,
+                                    updatedAt: task.updatedAt.toISOString(),
+                                    parentEpicTitle: epicTitle,
+                                    parentIdeaTitle: ideaTitle,
+                                },
+                                changes: changes,
+                                progressNotes: {
+                                    total: (task.progressNotes || []).length,
+                                    recent: (task.progressNotes || [])
+                                        .slice(-2)
+                                        .map((note) => ({
+                                            content: note.content,
+                                            type: note.type,
+                                            timestamp: note.timestamp,
+                                        })),
+                                },
+                                statusTransition: {
+                                    from: oldStatus,
+                                    to: task.status,
+                                    isProgression: this.isProgression(
+                                        oldStatus,
+                                        task.status
+                                    ),
+                                },
+                            },
+                            status: 'success',
+                            guidance: {
+                                next_steps: this.getNextSteps(
+                                    task,
+                                    oldStatus,
+                                    validatedArgs
+                                ),
+                                context: `Task "${task.title}" updated with ${changes.length} changes`,
+                                recommendations: this.getRecommendations(
+                                    task,
+                                    oldStatus,
+                                    validatedArgs
+                                ),
+                                suggested_commands: [
+                                    `pm get_task ${task.id}`,
+                                    `pm update_task ${task.id} progressNote "Additional update"`,
+                                    `pm next_task`,
+                                    `pm get_epic ${task.epicId}`,
+                                ],
+                            },
+                        },
+                        null,
+                        2
+                    ),
                 },
             ],
             metadata: {
@@ -261,71 +380,88 @@ export class UpdateTaskTool extends BaseTool {
                 hasProgressNote: !!validatedArgs.progressNote,
                 progressNotesCount: (task.progressNotes || []).length,
                 parentEpicId: task.epicId,
-                suggestedCommands: [
-                    `pm get_task ${task.id}`,
-                    `pm update_task ${task.id} progressNote "Additional update"`,
-                    `pm next`,
-                    `pm get_epic ${task.epicId}`,
-                ],
             },
         }
     }
 
-    private getStatusIcon(status: string): string {
-        switch (status) {
-            case 'done':
-                return '[OK]'
-            case 'in-progress':
-                return '[WAIT]'
-            case 'blocked':
-                return '[BLOCK]'
-            case 'deferred':
-                return '[DATE]'
-            default:
-                return '⏸️'
-        }
+    private isProgression(oldStatus: string, newStatus: string): boolean {
+        const progressionOrder = ['pending', 'in-progress', 'done']
+        const oldIndex = progressionOrder.indexOf(oldStatus)
+        const newIndex = progressionOrder.indexOf(newStatus)
+        return oldIndex >= 0 && newIndex >= 0 && newIndex > oldIndex
     }
 
-    private getProgressIcon(newStatus: string, oldStatus: string): string {
-        if (newStatus === 'done' && oldStatus !== 'done') {
-            return '[SUCCESS]'
-        } else if (newStatus === 'in-progress' && oldStatus === 'pending') {
-            return '[START]'
-        } else if (newStatus === 'blocked') {
-            return '[WARN]'
+    private getNextSteps(
+        task: any,
+        oldStatus: string,
+        validatedArgs: any
+    ): string[] {
+        const nextSteps = []
+
+        if (task.status === 'in-progress' && oldStatus === 'pending') {
+            nextSteps.push('Add progress notes regularly as you work')
+            nextSteps.push('Update status to done when task is complete')
+        } else if (task.status === 'done' && oldStatus !== 'done') {
+            nextSteps.push('Task completed successfully')
+            nextSteps.push('Use next_task to get next work item')
+        } else if (task.status === 'blocked') {
+            nextSteps.push('Identify and resolve blocking issues')
+            nextSteps.push('Add progress notes explaining the blocker')
         }
-        return '[NOTE]'
+
+        if (validatedArgs.progressNote) {
+            nextSteps.push('Continue adding progress notes for visibility')
+        }
+
+        nextSteps.push('Review task progress and update as needed')
+        nextSteps.push('Check epic progress to see overall completion')
+
+        return nextSteps
     }
 
-    private getProgressSummary(task: any): string {
-        const progressNotes = task.progressNotes || []
+    private getRecommendations(
+        task: any,
+        oldStatus: string,
+        validatedArgs: any
+    ): string[] {
+        const recommendations = []
 
-        if (progressNotes.length === 0) {
-            return '- No progress notes yet\n- [NOTE] **Suggestion**: Add notes to track your work'
-        }
-
-        const recentNotes = progressNotes
-            .sort(
-                (a: any, b: any) =>
-                    new Date(b.timestamp).getTime() -
-                    new Date(a.timestamp).getTime()
-            )
-            .slice(0, 2)
-
-        const summary = recentNotes
-            .map(
-                (note: any) =>
-                    `- **${new Date(note.timestamp).toLocaleDateString()}**: ${note.content}`
-            )
-            .join('\n')
-
-        if (progressNotes.length > 2) {
-            return (
-                summary +
-                `\n- *${progressNotes.length - 2} older notes - use get_task for full history*`
+        if (task.status === 'in-progress') {
+            recommendations.push('Add progress notes at key milestones')
+            recommendations.push(
+                'Update status regularly to reflect current state'
             )
         }
 
-        return summary
+        if (task.status === 'done') {
+            recommendations.push(
+                'Ensure all Definition of Done criteria are met'
+            )
+            recommendations.push('Review task completion and lessons learned')
+        }
+
+        if (task.status === 'blocked') {
+            recommendations.push(
+                'Document blocking issues clearly in progress notes'
+            )
+            recommendations.push(
+                'Focus on resolving blockers before continuing'
+            )
+        }
+
+        if (validatedArgs.progressNote) {
+            recommendations.push(
+                'Regular progress updates improve team visibility'
+            )
+        }
+
+        recommendations.push(
+            'Keep task information up to date for team coordination'
+        )
+        recommendations.push(
+            'Use progress notes to capture important decisions and context'
+        )
+
+        return recommendations
     }
 }
