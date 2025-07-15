@@ -1,16 +1,21 @@
 # 🚀 MCP Project Manager
 
+[![GitHub stars](https://img.shields.io/github/stars/croffasia/mcp-project-manager?style=social)](https://github.com/croffasia/mcp-project-manager/stargazers)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org)
+[![MCP Compatible](https://img.shields.io/badge/MCP-compatible-orange.svg)](https://modelcontextprotocol.io)
+
 **Hierarchical Task Management via Model Context Protocol (MCP)**
 
 Transform any MCP-compatible AI assistant into a powerful project manager with automated task breakdown, dependency tracking, and smart workflow management.
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)
-![MCP Compatible](https://img.shields.io/badge/MCP-compatible-orange.svg)
-
 **Compatible with:** Claude Code • Claude Desktop • Cursor • VS Code + Copilot • Continue.dev • Any MCP Client
 
-📖 **[📚 Complete User Guide](docs/README.md)** | 🔧 **[⚙️ Tools Reference](docs/tools.md)** | 🤖 **[🎯 AI Prompts](docs/prompts.md)**
+## 📖 Documentation
+
+- 📚 **[Complete User Guide](docs/README.md)** - Comprehensive setup and usage guide
+- ⚙️ **[Tools Reference](docs/tools.md)** - Complete MCP tools documentation  
+- 🎯 **[AI Prompts](docs/prompts.md)** - Ready-to-use prompts for task management
 
 ## ✨ Key Features
 
@@ -144,46 +149,9 @@ folder:
 
 ### 🔵 **Cursor**
 
-Add to Cursor settings (`File > Preferences > Settings > Extensions > MCP`):
+Add to Cursor MCP configuration:
 
-```json
-{
-    "mcp": {
-        "servers": {
-            "pm": {
-                "command": "npx",
-                "args": ["mcp-project-manager"]
-            }
-        }
-    }
-}
-```
-
-_Add `"env": {"MCP_TASK_DATA_DIR": "/path/to/your/project"}` if you need custom
-data directory._
-
-### 🟢 **VS Code** (Preview)
-
-With GitHub Copilot extension and Agent mode enabled:
-
-```json
-{
-    "github.copilot.chat.mcp.servers": {
-        "pm": {
-            "command": "npx",
-            "args": ["mcp-project-manager"]
-        }
-    }
-}
-```
-
-_Add `"env": {"MCP_TASK_DATA_DIR": "/path/to/your/project"}` if you need custom
-data directory._
-
-### 🟡 **Continue.dev**
-
-Add to Continue config (`.continue/config.json`):
-
+**Global Configuration**: Create `~/.cursor/mcp.json`:
 ```json
 {
     "mcpServers": {
@@ -195,8 +163,84 @@ Add to Continue config (`.continue/config.json`):
 }
 ```
 
-_Add `"env": {"MCP_TASK_DATA_DIR": "/path/to/your/project"}` if you need custom
-data directory._
+**Project-specific Configuration**: Create `.cursor/mcp.json` in your project:
+```json
+{
+    "mcpServers": {
+        "pm": {
+            "command": "npx",
+            "args": ["mcp-project-manager"],
+            "env": {
+                "MCP_TASK_DATA_DIR": "/path/to/your/project"
+            }
+        }
+    }
+}
+```
+
+### 🟢 **VS Code** (Preview)
+
+With GitHub Copilot extension and Agent mode enabled:
+
+**Workspace Configuration**: Create `.vscode/mcp.json` in your project:
+```json
+{
+    "servers": {
+        "pm": {
+            "type": "stdio",
+            "command": "npx",
+            "args": ["mcp-project-manager"]
+        }
+    }
+}
+```
+
+**With custom data directory**:
+```json
+{
+    "servers": {
+        "pm": {
+            "type": "stdio",
+            "command": "npx",
+            "args": ["mcp-project-manager"],
+            "env": {
+                "MCP_TASK_DATA_DIR": "/path/to/your/project"
+            }
+        }
+    }
+}
+```
+
+### 🟡 **Continue.dev**
+
+**Note**: MCP can only be used in **agent mode** in Continue.dev.
+
+Create `.continue/mcpServers/pm.yaml` in your project:
+
+```yaml
+name: MCP Project Manager
+version: 0.1.3
+schema: v1
+mcpServers:
+  - name: Project Manager
+    command: npx
+    args:
+      - "mcp-project-manager"
+```
+
+**With custom data directory**:
+```yaml
+name: MCP Project Manager
+version: 0.1.3
+schema: v1
+mcpServers:
+  - name: Project Manager
+    command: npx
+    args:
+      - "mcp-project-manager"
+    env:
+      MCP_TASK_DATA_DIR: "/path/to/your/project"
+```
 
 ### 🟣 **Other MCP-Compatible Tools**
 
@@ -209,7 +253,7 @@ data directory._
 
 If you cloned the repository (Method 2), update your MCP client config:
 
-**Using built version:**
+**For Claude Code/Desktop** (using built version):
 
 ```json
 {
@@ -222,20 +266,44 @@ If you cloned the repository (Method 2), update your MCP client config:
 }
 ```
 
-**With custom data directory:**
+**For Cursor** (create `~/.cursor/mcp.json` or `.cursor/mcp.json`):
 
 ```json
 {
     "mcpServers": {
         "pm": {
             "command": "node",
-            "args": ["/absolute/path/to/mcp-project-manager/dist/index.js"],
-            "env": {
-                "MCP_TASK_DATA_DIR": "/path/to/your/project"
-            }
+            "args": ["/absolute/path/to/mcp-project-manager/dist/index.js"]
         }
     }
 }
+```
+
+**For VS Code** (create `.vscode/mcp.json`):
+
+```json
+{
+    "servers": {
+        "pm": {
+            "type": "stdio",
+            "command": "node",
+            "args": ["/absolute/path/to/mcp-project-manager/dist/index.js"]
+        }
+    }
+}
+```
+
+**For Continue.dev** (create `.continue/mcpServers/pm.yaml`):
+
+```yaml
+name: MCP Project Manager
+version: 0.1.3
+schema: v1
+mcpServers:
+  - name: Project Manager
+    command: node
+    args:
+      - "/absolute/path/to/mcp-project-manager/dist/index.js"
 ```
 
 ## For Developers
@@ -265,86 +333,9 @@ npm run test   # Run tests
 
 ## 🖥️ CLI Dashboard
 
-- **Interactive Task Browser**: Terminal-based interface for task management
-- **Real-time Updates**: Auto-refresh capabilities with customizable intervals
-- **Hierarchical Navigation**: Browse through projects → ideas → epics → tasks
-- **Task Details View**: Detailed task information with progress tracking
+Interactive terminal-based interface for task management with real-time updates and hierarchical navigation. Run with `npx mcp-project-manager --dashboard`.
 
-### Parameters
 
-- **Task Types**: `task`, `bug`, `rnd` (research)
-- **Statuses**: `pending`, `in-progress`, `done`, `blocked`, `deferred`
-- **Priorities**: `low`, `medium`, `high`
-
-## Example Usage
-
-### Project Setup
-
-```
-User: "Initialize project management"
-Claude: Creates .product-task/ structure with counters and config
-```
-
-### Creating Work Items
-
-```
-User: "Create idea 'User Authentication System'"
-Claude: Creates IDEA-1 with proper structure
-
-User: "Break down this idea into epics"
-Claude: Analyzes and creates: Login API, Frontend Integration, Security
-```
-
-### Task Management
-
-```
-User: "Give me the next high priority task"
-Claude: Returns optimal task based on dependencies and priority
-
-User: "Update task TSK-5 status to in-progress"
-Claude: Updates status and logs progress
-```
-
-### CLI Dashboard Usage
-
-**With NPX:**
-
-```bash
-npx mcp-project-manager --dashboard
-npx mcp-project-manager --dashboard --refresh=60
-```
-
-**With local installation:**
-
-```bash
-npm run dashboard
-```
-
-**Navigation:**
-
-- Use ↑/↓ to navigate lists
-- Press Enter to select items
-- Use Backspace to go back
-- Press 'q' to quit
-
-### Analysis
-
-```
-User: "Analyze complexity of task TSK-3"
-Claude: Provides detailed complexity assessment with recommendations
-```
-
-## Architecture
-
-The server uses a hierarchical structure:
-
-- **Ideas** (IDEA-N): High-level features
-- **Epics** (EPIC-N): Implementation phases
-- **Tasks** (TSK-N): Specific development work
-- **Bugs** (BUG-N): Bug fixes
-- **Research** (RND-N): Investigation tasks
-
-Data is stored in SQLite database for reliable and efficient task management.
 
 ## Advanced Configuration
 
@@ -370,21 +361,6 @@ The registry tracks:
 This happens automatically - no configuration needed. The registry enables
 future features like project switching and usage analytics.
 
-### ID Prefixes
-
-Customize ID prefixes in `project-config.json`:
-
-```json
-{
-    "prefixes": {
-        "idea": "FEAT",
-        "epic": "EPIC",
-        "task": "TSK",
-        "bug": "BUG",
-        "rnd": "RND"
-    }
-}
-```
 
 ### Environment Variables
 
@@ -394,7 +370,6 @@ Customize ID prefixes in `project-config.json`:
 
 ## 🌟 Contributing & Support
 
-⭐ **Star this repository** if you find it useful!  
 🐛 **Report issues** on our [GitHub Issues](https://github.com/croffasia/mcp-project-manager/issues)  
 🤝 **Contribute** by submitting pull requests  
 📖 **Share** with other developers who use MCP-compatible AI tools  
@@ -402,3 +377,13 @@ Customize ID prefixes in `project-config.json`:
 ## 📄 License
 
 MIT © 2025 [Andrii Poluosmak](https://github.com/croffasia)
+
+---
+
+### 🌟 Found this project useful?
+
+If MCP Project Manager helped improve your AI-powered development workflow, please consider giving it a star! Your support helps us reach more developers and continue improving the project.
+
+[![GitHub stars](https://img.shields.io/github/stars/croffasia/mcp-project-manager?style=social)](https://github.com/croffasia/mcp-project-manager/stargazers)
+
+**Thank you for your support!** 🙏

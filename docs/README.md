@@ -314,6 +314,24 @@ Make users able to register
 - **[Approval Workflow](approval-workflow.md)** - User control system for AI
   actions
 
+## 🔧 Configuration
+
+### ID Prefixes
+
+Customize ID prefixes in `project-config.json`:
+
+```json
+{
+    "prefixes": {
+        "idea": "FEAT",
+        "epic": "EPIC",
+        "task": "TSK",
+        "bug": "BUG",
+        "rnd": "RND"
+    }
+}
+```
+
 ## 🎯 Quick Commands Reference
 
 ```
